@@ -22,3 +22,5 @@ doc
 
 test/work
 work
+*.js
+*.map
