@@ -1,7 +1,16 @@
-glob = global || window
+glob = global ? window
 
+doc   = glob.document
 I     = (a) -> a
 merge = (t, os...) -> t[k] = v for k,v of o when v != undefined for o in os; t
+
+# inject css
+do ->
+    styles = "%%%CSSSTYLES%%%%"
+    css = doc.createElement('style')
+    css.type = 'text/css'
+    css.innerHTML = styles
+    doc.head.appendChild css
 
 class Group    then constructor: (@cats)         ->
 class Category then constructor: (@name, opts)   -> merge @, opts
@@ -10,13 +19,22 @@ class Trigger  then constructor: (@symbol, opts) -> merge @, opts
 # Function to make ttbox out of an element with triggers
 #
 ttbox = (el, trigs...) ->
+    # pass ref to element and tell to initialize
+    el = ttbox.render.init el
+
+    # and check we got a good thing back
     throw new Error('Need a DIV') unless el.tagName == 'DIV'
+
+    # the event handlers
     handlers =
         keydown: (el) ->
         focusin: (el) ->
         focusout: (el) ->
-    ttbox.render.draw el, handlers
 
+    # first drawing
+    do draw = ->
+        # draw and attach handlers
+        ttbox.render.draw handlers
 
 
 # Factory function for making categories and groups of categories
@@ -51,18 +69,21 @@ ttbox.trig = (symbol, opts) -> new Trigger symbol, opts
 def = (name, value) -> Object.defineProperty ttbox, name,
     enumerable: false
     configurable: false
-        value: value
+    value: value
 
 # jquery drawing hook
 do ->
+    $    = null # set on init
+    $el  = null # set on init
     html = '<div class="ttbox"><div class="ttbox-area"></div></div>'
-    $ = glob.jQuery
-    $el = null
     def 'jquery',
-        draw: (el, handlers) ->
-        $el = $(el)
-        $el.html html
-        $el.on(event, handler) for event, handler in handlers
+        init: (el) ->
+            throw new Error("Didn't find jQuery") unless $ = jQuery
+            $el = $(el)
+            $el[0]
+        draw: (handlers) ->
+            $el.html html
+            $el.on(event, handler) for event, handler in handlers
 
 # use jquery render default
 def 'render', ttbox.jquery
