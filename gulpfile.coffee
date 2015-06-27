@@ -9,8 +9,8 @@ fs         = require 'fs'
 gulp.task 'compile', ->
     css = fs.readFileSync './src/ttbox.css', encoding:'utf-8'
     gulp.src './src/*.coffee'
-        .pipe sourcemaps.init()
         .pipe replace '%%%CSSSTYLES%%%%', css
+        .pipe sourcemaps.init()
         .pipe coffee()
         .on 'error', (e) ->
               console.log e.toString()

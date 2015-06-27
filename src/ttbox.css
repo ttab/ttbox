@@ -1,4 +1,73 @@
 
+.ttbox * {
+    box-sizing: border-box;
+    width: auto;
+}
+
 .ttbox {
-    background: red;
+    position: relative;
+    box-sizing: border-box;
+}
+
+.ttbox-overflow {
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.ttbox-overflow::-webkit-scrollbar {
+    display: none;
+}
+.ttbox-showing-suggest .ttbox-overflow {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.ttbox-input {
+    padding-left: 4px;
+    white-space: nowrap;
+    outline: none;
+}
+.ttbox-input * {
+    outline: none;
+}
+
+.ttbox-input * {
+    display: inline-block;
+    white-space: nowrap;
+}
+.ttbox-input br {
+    display: none;
+}
+
+.ttbox-suggest {
+    position: absolute;
+    left: 0;
+    border-top: none;
+    min-height: 50px;
+    background: white;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+    box-shadow: 0 2px 2px rgba(0,0,0,0.3);
+}
+.ttbox-suggest-item {
+    cursor: pointer;
+}
+.ttbox-selected {
+    background: #eee;
+}
+
+.ttbox-pill {
+    background: #39ea80;
+    border-radius: 14px;
+    padding: 0 12px;
+}
+.ttbox-pill dfn {
+    display: none;
+}
+.ttbox-pill span {
+    min-width: 30px;
 }

@@ -1,0 +1,23 @@
+
+* {
+    vertical-align: baseline;
+    font-family: inherit;
+    font-style: inherit;
+    font-size: 100%;
+}
+
+body {
+    font-family: "Helvetica Neue",Helvetica,Arial,sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+#myinput {
+    width: 200px;
+    margin-bottom: 50px;
+    line-height: 30px;
+}
+
+input {
+    width: 200px;
+}
