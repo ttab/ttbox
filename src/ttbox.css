@@ -37,7 +37,7 @@
     white-space: nowrap;
 }
 .ttbox-input br {
-    display: none;
+    display: inline;
 }
 
 .ttbox-suggest {
@@ -61,13 +61,32 @@
 }
 
 .ttbox-pill {
+    line-height: 1.45;
+}
+.ttbox-pill > div:before {
+//    content: ' ';
+//    display: inline-block;
+//    width: 5px;
+}
+
+.ttbox-pill > div {
+    margin-left: 2px;
+    border: none;
     background: #39ea80;
     border-radius: 14px;
     padding: 0 12px;
+    color: rgba(0,0,0,0.6);
+    text-shadow: 0px 1px 1px rgba(255,255,255,0.6);
+    min-width: 30px;
+}
+.ttbox-pill-editing span {
+    color: #000;
+    text-shadow: none;
 }
 .ttbox-pill dfn {
     display: none;
 }
 .ttbox-pill span {
-    min-width: 30px;
+    min-width: 2px;
+    text-align: center;
 }

@@ -38,7 +38,7 @@ rangeBefore = (r) ->
     t.setEnd r.endContainer, caret
     # the characters *just* before new insertion up to white
     # space: "bla bla foo@" would be "foo"
-    word = t.toString().match(/(^|\s+[^\s]+)*(^|\s+)([^\s]+)$/)?[3]
+    word = filterZwnj(t.toString()).match(/(^|\s+[^\s]+)*(^|\s+)([^\s]+)$/)?[3]
     if caret and word?.length <= caret
         t.setStart r.startContainer, caret - word.length
         t.setEnd r.endContainer, caret - 1
@@ -52,7 +52,7 @@ adjustRange = (r, start, end) ->
 
 setCursor = (el) ->
     r = doc.createRange()
-    r.setStart el, el.length
+    r.setStart el, 0
     (sel = doc.getSelection()).removeAllRanges()
     sel.addRange r
 
@@ -89,14 +89,14 @@ ttbox = (el, trigs...) ->
     changed = (v, char) ->
         # the word range before the current insert point
         range = rangeBefore doc.getSelection().getRangeAt(0)
-        word = range.toString()
+        word = filterZwnj range.toString()
         # potentially find a trigger
         trig = find trigs, (t) -> t.symbol == char and (t.types.length != 1 or !word) if char
         # a trigger to fire
         typeselect range, trig if trig
 
     typeselect = (range, trig) ->
-        word = range.toString()
+        word = filterZwnj range.toString()
         # the possible types given current word
         types = trig.types.filter (t) -> t.name.indexOf(word) == 0
         if types.length == 1
@@ -116,7 +116,8 @@ ttbox = (el, trigs...) ->
         sugmover = sugselect = null
         fn = (text, cb) -> cb types
         wrange = adjustRange range, 0 , 1 # adjust to include trigger
-        render.suggest fn, range.toString(), -1, sugmovecb, (type, doselect) ->
+        word = filterZwnj range.toString()
+        render.suggest fn, word, -1, sugmovecb, (type, doselect) ->
             pill = render.pillify wrange, trig, type
             sugselect = ->
                 sugmover = sugselect = null
@@ -133,6 +134,7 @@ ttbox = (el, trigs...) ->
             pilleditend = null
             pill.finish commit
             setMode MODE_INPUT
+        pill.onfocusout -> pilleditend?(false)
         pill.focus()
 
     # the event handlers
@@ -163,9 +165,12 @@ ttbox = (el, trigs...) ->
             if mode == MODE_TYPE_SELECT
                 e.preventDefault()
 
+            render.tidy() # keep it sane with <br> at the end
+
         keypress: (e) ->
             if mode == MODE_INPUT
                 update String.fromCharCode(e.which) # cancel keypress with actual code
+            render.tidy()
         focusin:  (e) ->
         focusout: (e) ->
 
@@ -218,7 +223,7 @@ do ->
     $el  = null # set on init
     $box = -> $el.find('.ttbox')
     html = '<div class="ttbox"><div class="ttbox-overflow">' +
-        '<div class="ttbox-input" contenteditable="true"></div></div></div>'
+        '<div class="ttbox-input" contenteditable="true"><br/></div></div></div>'
     suggest = '<div class="ttbox-suggest"></div>'
     def 'jquery',
         init: (el) ->
@@ -273,39 +278,63 @@ do ->
                     selectIdx true
         pillify: (range, trig, type) ->
             range.deleteContents()
-            $pill = $("<span class=\"ttbox-pill\"><dfn>#{type.name}#{trig.symbol}</dfn>"+
-                "<span></span></span>")
-            $pill.prop('contenteditable', 'false')
-            $pill.children().prop('contenteditable', 'false')
+            $pill = $("<div class=\"ttbox-pill ttbox-pill-editing\">#{zwnj}<div><dfn>"+
+                "#{type.name}#{trig.symbol}</dfn>"+
+                "<span></span></div>#{zwnj}</div>") # those spaces are not spaces
+            $pill.find('*').andSelf().prop('contenteditable', 'false')
             $pill.find('span').prop('contenteditable', 'true')
             $pill.find('span')[0].appendChild (insert = doc.createTextNode(''))
             range.insertNode($pill[0])
             later -> $pill[0].scrollIntoView()
             value = -> $pill.find('span').text()
+            remove = ->
+                sib = $pill[0].nextSibling
+                $pill.remove()
+                setCursor sib if sib
             {
                 focus: -> setCursor insert
+                onfocusout: (cb) -> $pill.one 'focusout', cb
                 trig: ->  trig
                 type: ->  type
                 value: value
+                remove: remove
                 finish: (keep) ->
                     # trim
                     $pill.find('span').text value().trim()
-                    return $pill.remove() unless keep and value()
+                    return remove() unless keep and value()
+                    $pill.removeClass 'ttbox-pill-editing'
                     $pill.find('span').prop('contenteditable', 'false')
-                    $pill.after('&nbsp;')
                     # ensure we're scrolled
                     $dummy = $('<span style="width:10px">')
                     appendAfter $pill[0], $dummy[0]
                     later ->
                         $dummy[0].scrollIntoView()
                         $dummy.remove()
-                    # append text to focus cursor on
-                    text = doc.createTextNode(' ')
-                    appendAfter $pill[0], text
-                    setCursor text
+                        setCursor $pill[0].nextSibling
             }
+        tidy: ->
+            unless ($inp = $el.find('.ttbox-input')).children().last().is 'br'
+                $inp.find('br').remove()
+                $inp.append '<br>'
+            childs = $inp[0].childNodes
+            first = childs[0]
+            if first?.nodeType != 3 or first?.nodeValue?[0] != zwnj
+                $inp[0].insertBefore doc.createTextNode(zwnj), first
+            for n, i in childs when n?.nodeType == 1 and childs[i+1]?.nodeType == 1
+                appendAfter n, doc.createTextNode(zwnj)
+            later -> $inp[0].normalize()
 
-appendAfter = (el, node) -> el.parentNode.insertBefore(node, el.nextSibling)
+
+zwnj = "​" # &zwnj;
+isAdjacentToZwnj = (node, ofs) ->
+    node?.nodeType == 3 and ofs > 0 and node.nodeValue[ofs - 1] == zwnj
+filterZwnj = (s) -> s.replace zwnj, ''
+adjustAdjacent = (node, _ofs) ->
+    ofs = _ofs
+    ofs = ofs - 1 while isAdjacentToZwnj node, ofs
+    if ofs != _ofs then ofs else null
+appendAfter  = (el, node) -> el.parentNode.insertBefore(node, el.nextSibling)
+appendBefore = (el, node) -> el.parentNode.insertBefore(node, el)
 
 # use jquery render default
 def 'render', ttbox.jquery
