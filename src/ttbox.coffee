@@ -25,16 +25,7 @@ do ->
     css.innerHTML = styles
     doc.head.appendChild css
 
-class Type
-    constructor: (@name, opts) -> merge @, opts
-    html: (word) ->
-        high = ""
-        unhigh = @name
-        desc = @desc ? ''
-        if @name.indexOf(word) == 0
-            high = word
-            unhigh = @name[word.length..]
-        "<div><dfn><b>#{high}</b>#{unhigh}</dfn>: #{desc}</div>"
+class Type then constructor: (@name, opts) -> merge @, opts
 class Trigger then constructor: (@symbol, opts, types) ->
     merge @, opts
     @types = if Array.isArray types then types else [types]
@@ -108,6 +99,8 @@ ttbox = (el, trigs...) ->
     throw new Error('Need a DIV') unless render.init(el).tagName == 'DIV'
 
     update = hold 3, (char) ->
+        # a pill edit trumfs all
+        return if handlepill()
         # cursor range for word
         r = wordRangeAtCursor()
         word = rangeStr(r)
@@ -122,7 +115,7 @@ ttbox = (el, trigs...) ->
         # find possible types
         types = trig.types.filter (t) -> trig.prefix or t.name.indexOf(typename) == 0
         # hand off to deal with found input
-        handle r, trig, types, char
+        handletypes r, trig, types, char
 
     sugselect = null
     sugmover = null
@@ -131,7 +124,7 @@ ttbox = (el, trigs...) ->
         sugselect = sugmover = null
         render.unsuggest()
 
-    handle = (range, trig, types, char) ->
+    handletypes = (range, trig, types, char) ->
         # the trigger position in the word range
         tpos = findInRange range, trig.symbol
         # no tpos?!
@@ -178,11 +171,20 @@ ttbox = (el, trigs...) ->
             sugselect = sugselectfor item
             sugselect() if doset
 
+    handlepill = ->
+        return unless r = wordRangeAtCursor()
+        return unless pill = render.pillfor(r.startContainer?.parentNode)
+        return unless typeof pill.type?.suggest == 'function'
+        # definitely a suggest
+        fnvals = (word, cb) -> pill.type.suggest word, cb, pill.type, pill.trig
+        render.suggest fnvals, r, -1, setSugmover, (item, doset) ->
+            console.log item, doset
+        true # signal we dealt with it
+
     # move the input out of a pill (if we're in a pill)
     pilljump = ->
         return unless r = cursor()
-        return unless el = r.startContainer?.parentNode
-        return unless sib = render.pillsibling(el)
+        return unless sib = render.pillsibling(r.startContainer?.parentNode)
         r.selectNodeContents sib
         setCursorPos r, 0
 
@@ -253,6 +255,16 @@ ttbox.trig = (symbol, opts, types) ->
     new Trigger symbol, opts, types
 
 
+# Helper method to make html for a suggest. Used as backup
+# if suggest items don't provide a .html() method.
+# ttbox.sugestHtml('word', 'wordispartof', 'some description')
+#   produces
+# "<div><dfn><b>word</b>ispartof</dfn>: some description</div>"
+ttbox.suggestHtml = (word, name, desc = '') ->
+    [high, unhigh] = if name.indexOf(word) == 0 then [word, name[word.length..]] else ["", name]
+    "<div><dfn><b>#{high}</b>#{unhigh}</dfn>: #{desc}</div>"
+Type::html = (word) -> ttbox.suggestHtml word, @name, @desc
+
 # define an invisible property on ttbox
 def = (name, value) -> Object.defineProperty ttbox, name,
     enumerable: false
@@ -277,7 +289,12 @@ do ->
     html = '<div class="ttbox"><div class="ttbox-overflow">' +
         '<div class="ttbox-input" contenteditable="true"></div></div></div>'
     suggest = '<div class="ttbox-suggest"></div>'
-    cursughtml = null
+    cursugword = null
+    pills = {} # <pillid, pill>
+    tidypills = hold 5000, ->
+        present = $el.find('.ttbox-pill').map(-> $(@).attr 'id').toArray()
+        delete pills[id] for id in Object.keys(pills) when present.indexOf(id) < 0
+        null
     def 'jquery',
         init: (el) ->
             throw new Error("Didn't find jQuery") unless $ = jQuery
@@ -290,7 +307,7 @@ do ->
         unsuggest: ->
             $('.ttbox-suggest').remove()
             $box().removeClass 'ttbox-showing-suggest'
-            cursughtml = null
+            cursugword = null
         suggest: (fn, range, idx, movecb, selectcb) ->
             # the current word
             word = rangeStr(range)
@@ -302,26 +319,19 @@ do ->
             # adjust for border of parent
             bord = parseInt $el.find('.ttbox-overflow').css('border-bottom-width')
             $sug.css top:$el.outerHeight() - bord
+            # dont suggest for same word again
+            return if cursugword == word
+            cursugword = word
+            # empty suggest box to start fresh
+            $sug.html(''); $sug.off()
             # class to hook styling when suggesting
             $box().append($sug).addClass 'ttbox-showing-suggest'
             # request to get suggest elements
             fn word, (list) ->
                 # not requesting anymore
                 $box().removeClass 'ttbox-suggest-request'
-                # all html.
-                html = list.map (l) -> l.html(word)
-                # join all to get a comparison value
-                sughtml = html.join('')
-                # no update, keep all as is.
-                return if cursughtml == sughtml
-                # and we do state change
-                cursughtml = sughtml
-                # ensure no lingering handlers
-                $sug.off()
-                # empty suggest box to start fresh
-                $sug.html('')
                 # append each element .html()
-                html.forEach (h) -> $sug.append $(h).addClass('ttbox-suggest-item')
+                list.forEach (l) -> $sug.append $(l.html(word)).addClass('ttbox-suggest-item')
                 do selectIdx = (dostart = false) ->
                     return if idx < 0 and !dostart
                     idx = 0 if idx < 0
@@ -342,18 +352,27 @@ do ->
                     return unless offs
                     idx = idx + offs
                     selectIdx true
-        pillify: (range, trig, item) ->
-            dfn = if trig.prefix then trig.symbol else item.name + trig.symbol
+        pillify: (range, trig, type) ->
+            # create pill html
+            dfn = if trig.prefix then trig.symbol else type.name + trig.symbol
             $pill = $("<div class=\"ttbox-pill\"><dfn>#{dfn}</dfn><span></span></div>")
             $pill.find('*').andSelf().prop 'contenteditable', 'false'
             ($span = $pill.find('span')).prop 'contenteditable', 'true'
+            # generate id to associate with mem structure
+            id = "ttboxpill#{Date.now()}"
+            $pill.attr 'id', id
+            # replace contents with pill
             range.deleteContents()
             range.insertNode $pill[0]
+            # position cursor in pill
             r = doc.createRange()
             r.selectNodeContents $span[0]
             setCursorPos r, 0
             @tidy()
+            value = -> $span.text()
+            return pills[id] = {id, trig, type, value}
         pillsibling: (el) -> $(el).closest('.ttbox-pill')?[0]?.nextSibling
+        pillfor: (el) -> pills[$(el).closest('.ttbox-pill').attr('id')]
         tidy: ->
             $inp = $el.find('.ttbox-input')
             inp = $inp[0]
@@ -384,6 +403,8 @@ do ->
                         r.setEnd n, 0
             # remove any nested span in pills
             $el.find('.ttbox-pill span span').remove()
+            # keep cache clean
+            tidypills()
             null
 
 
