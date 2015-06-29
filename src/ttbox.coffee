@@ -78,8 +78,7 @@ wordRangeAtCursor = ->
 findInRange = (r, char) ->
     t = r.cloneRange()
     max = (t.endContainer?.nodeValue?.length ? 0) - 1
-    i = 0
-    for i in [0..max] by 1
+    for i in [t.startOffset..max] by 1
         t.setStart t.startContainer, i
         t.setEnd t.endContainer, i + 1
         return i if t.toString() == char
@@ -112,7 +111,9 @@ ttbox = (el, trigs...) ->
         # a trigger in the word?
         trig = find trigs, (t) -> t.re.test word
         # no trigger found in current word, abort
-        return unless trig
+        unless trig
+            stopsug?()
+            return
         # exec trigger to get parts
         [_, typename, value] = trig.re.exec word
         # find possible types
