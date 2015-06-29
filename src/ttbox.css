@@ -44,7 +44,7 @@
     position: absolute;
     left: 0;
     border-top: none;
-    min-height: 50px;
+    min-height: 5px;
     background: white;
     border: 1px solid #bbb;
     border-radius: 3px;
@@ -84,7 +84,7 @@
     text-shadow: none;
 }
 .ttbox-pill dfn {
-    display: none;
+//    display: none;
 }
 .ttbox-pill span {
     min-width: 2px;
