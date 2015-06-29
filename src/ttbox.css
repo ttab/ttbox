@@ -69,7 +69,7 @@
 //    width: 5px;
 }
 
-.ttbox-pill > div {
+.ttbox-pill {
     margin-left: 2px;
     border: none;
     background: #39ea80;

@@ -11,8 +11,8 @@ last  = (as) -> as?[as.length - 1]
 find  = (as, fn) -> return a for a in as when fn(a)
 
 zwnj = "​" # &zwnj;
-filterA0 =   (s) -> s.replace /\u00a0/g, ' '  # nbsp
-filterZwnj = (s) -> s.replace zwnj, ''
+filterA0 =   (s) -> s.replace /\u00a0/g, ' ' # nbsp
+filterZwnj = (s) -> s.replace /\u200b/g, ''
 appendAfter  = (el, node) -> el.parentNode.insertBefore(node, el.nextSibling)
 appendBefore = (el, node) -> el.parentNode.insertBefore(node, el)
 hexdump = (s) -> (c.charCodeAt(0).toString(16) for c in s).join(' ')
@@ -44,11 +44,16 @@ class Trigger then constructor: (@symbol, opts, types) ->
     else
         @re = RegExp "^(\\w*)\\#{@symbol}(\\w*)$"
 
-isAlpha    = (ev) -> 65 <= ev.keyCode <= 90
-isModifier = (ev) -> ev.ctrlKey || ev.metaKey || ev.altKey
-isShift    = (ev) -> ev.shiftKey
-isDel      = (ev) ->
-    console.log ev.keyCode
+skipZwnj = (d, end) ->
+    return unless r = cursor()
+    n = if end then r.endContainer else r.startContainer
+    i = if end then r.endOffset else r.startOffset
+    return unless n.nodeType == 3
+    c = n.nodeValue.charCodeAt (if d < 0 then i + d else i)
+    if c == 8203
+        # move
+        setCursorPos r, i + d
+        skipZwnj d, end # and maybe continue moving?
 
 # current cursor position
 cursor = -> s = doc.getSelection(); if s.rangeCount then s.getRangeAt(0) else null
@@ -103,8 +108,6 @@ ttbox = (el, trigs...) ->
     throw new Error('Need a DIV') unless render.init(el).tagName == 'DIV'
 
     update = hold 3, (char) ->
-        # here we go
-        render.tidy()
         # cursor range for word
         r = wordRangeAtCursor()
         word = rangeStr(r)
@@ -131,22 +134,25 @@ ttbox = (el, trigs...) ->
     handle = (range, trig, types, char) ->
         # the trigger position in the word range
         tpos = findInRange range, trig.symbol
+        # no tpos?!
+        return if tpos < 0
         # range for type name (which may not be the entire name)
         trange = range.cloneRange()
         trange.setEnd trange.endContainer, tpos
         # whether the last input was the trigger
         wastrig = char == trig.symbol
-        # helper to replace the type name
-        replaceTypename = (txt) ->
-            trange.deleteContents()
-            trange.insertNode doc.createTextNode txt
+        # helper when finished selecting a type
+        selectType = (type) ->
+            #trange.deleteContents()
+            #trange.insertNode doc.createTextNode type.name
+            render.pillify range, trig, type
         if types.length == 0
             stopsug()
         else if types.length == 1 and not sugmover
             # one possible solution
             if wastrig
-                # expand type name to only possible
-                replaceTypename types[0].name
+                # for trigger char, we select straight away
+                selectType types[0]
         else
             # when the key input was the trigger and there are
             # multiple possible values, position. move to just before
@@ -155,18 +161,16 @@ ttbox = (el, trigs...) ->
                 # move the cursor to allow for suggest input
                 setCursorPos range, tpos
             # start a suggest for current possible types
-            typesuggest trange, tpos, replaceTypename, types
+            typesuggest trange, tpos, selectType, types
 
 
-    typesuggest = (range, tpos, replace, types) ->
+    typesuggest = (range, tpos, selectType, types) ->
         fntypes = (_, cb) -> cb types
         sugselectfor = (item) -> ->
-            # move cursor to just after the suggest
-            setCursorPos range, tpos + 1
-            # replace the type value with selected
-            replace item.name
             # stop suggesting
             stopsug()
+            # the type is selected
+            selectType item
         # if there is only one, set it as possible for return key
         sugselect = sugselectfor types[0] if types.length == 1
         # render suggestions
@@ -174,14 +178,26 @@ ttbox = (el, trigs...) ->
             sugselect = sugselectfor item
             sugselect() if doset
 
+    # move the input out of a pill (if we're in a pill)
+    pilljump = ->
+        return unless r = cursor()
+        return unless el = r.startContainer?.parentNode
+        return unless sib = render.pillsibling(el)
+        r.selectNodeContents sib
+        setCursorPos r, 0
 
     # the event handlers
     handlers =
         keydown:  (e) ->
 
+            # this does an important el.normalize() that ensures we have
+            # contiguous text nodes, crucial for the range logic.
+            render.tidy()
+
             if e.keyCode == 13
                 e.preventDefault() # dont want DOM change
                 sugselect?()
+                return if pilljump()
 
             if sugmover
                 if e.keyCode == 38      # up
@@ -191,7 +207,15 @@ ttbox = (el, trigs...) ->
                     e.preventDefault()  # no cursor move
                     return sugmover(+1)
 
+            if e.keyCode in [37, 8]
+                skipZwnj -1, e.shiftKey # skip zwnj backwards to first non-zwnj pos
+            else if e.keyCode in [39, 46]
+                skipZwnj +1, e.shiftKey # skip zwnj forwards to first non-zwnj pos
+
             update() # do an update, but may cancel with keypress to get char
+
+            # and keep make sure it's tidy
+            later -> render.tidy()
 
         keypress: (e) ->
             # cancel previous update since we have a charcode
@@ -251,8 +275,9 @@ do ->
     $el  = null # set on init
     $box = -> $el.find('.ttbox')
     html = '<div class="ttbox"><div class="ttbox-overflow">' +
-        '<div class="ttbox-input" contenteditable="true"><br/></div></div></div>'
+        '<div class="ttbox-input" contenteditable="true"></div></div></div>'
     suggest = '<div class="ttbox-suggest"></div>'
+    cursughtml = null
     def 'jquery',
         init: (el) ->
             throw new Error("Didn't find jQuery") unless $ = jQuery
@@ -265,6 +290,7 @@ do ->
         unsuggest: ->
             $('.ttbox-suggest').remove()
             $box().removeClass 'ttbox-showing-suggest'
+            cursughtml = null
         suggest: (fn, range, idx, movecb, selectcb) ->
             # the current word
             word = rangeStr(range)
@@ -278,14 +304,24 @@ do ->
             $sug.css top:$el.outerHeight() - bord
             # class to hook styling when suggesting
             $box().append($sug).addClass 'ttbox-showing-suggest'
-            # empty suggest box to start fresh
-            $sug.html('')
-            # ensure no lingering handlers
-            $sug.off()
-            # callback to get suggest elements
+            # request to get suggest elements
             fn word, (list) ->
+                # not requesting anymore
+                $box().removeClass 'ttbox-suggest-request'
+                # all html.
+                html = list.map (l) -> l.html(word)
+                # join all to get a comparison value
+                sughtml = html.join('')
+                # no update, keep all as is.
+                return if cursughtml == sughtml
+                # and we do state change
+                cursughtml = sughtml
+                # ensure no lingering handlers
+                $sug.off()
+                # empty suggest box to start fresh
+                $sug.html('')
                 # append each element .html()
-                list.forEach (l) -> $sug.append $(l.html(word)).addClass('ttbox-suggest-item')
+                html.forEach (h) -> $sug.append $(h).addClass('ttbox-suggest-item')
                 do selectIdx = (dostart = false) ->
                     return if idx < 0 and !dostart
                     idx = 0 if idx < 0
@@ -306,14 +342,25 @@ do ->
                     return unless offs
                     idx = idx + offs
                     selectIdx true
-        pillify: ->
+        pillify: (range, trig, item) ->
+            dfn = if trig.prefix then trig.symbol else item.name + trig.symbol
+            $pill = $("<div class=\"ttbox-pill\"><dfn>#{dfn}</dfn><span></span></div>")
+            $pill.find('*').andSelf().prop 'contenteditable', 'false'
+            ($span = $pill.find('span')).prop 'contenteditable', 'true'
+            range.deleteContents()
+            range.insertNode $pill[0]
+            r = doc.createRange()
+            r.selectNodeContents $span[0]
+            setCursorPos r, 0
+            @tidy()
+        pillsibling: (el) -> $(el).closest('.ttbox-pill')?[0]?.nextSibling
         tidy: ->
             $inp = $el.find('.ttbox-input')
             inp = $inp[0]
             # merge stuff together and remove empty textnodes.
             inp.normalize()
-            # first ensure there's a <br> at the end
-            unless $inp.children().last().is 'br'
+            # first ensure there's a <br> at the end for non-IE
+            unless isIE() or $inp.children().last().is 'br'
                 $inp.find('br').remove()
                 $inp.append '<br>'
             childs = inp.childNodes
@@ -324,9 +371,23 @@ do ->
             # ensure there's always a zwnj after every element node
             for n in childs when n?.nodeType == 1 and n?.nextSibling?.nodeType == 1
                 appendAfter n, doc.createTextNode(zwnj)
+            # move cursor to not be on bad element positions
+            if r = cursor()
+                if r.startContainer == inp or r.endContainer == inp
+                    cs = Array::slice.call childs
+                    # current text node, then right, the left.
+                    isText = (n) -> if n?.nodeType == 3 then n else null
+                    i = r.startOffset
+                    n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
+                    if n
+                        r.setStart n, 0
+                        r.setEnd n, 0
+            # remove any nested span in pills
+            $el.find('.ttbox-pill span span').remove()
             null
 
 
+isIE = -> glob.navigator.userAgent.indexOf('MSIE') > 0
 
 # use jquery render default
 def 'render', ttbox.jquery
