@@ -1,0 +1,21 @@
+{
+  "name": "ttbox",
+  "version": "0.0.1",
+  "homepage": "https://github.com/ttab/ttbox",
+  "authors": [
+    "Martin Algesten <martin@algesten.se>"
+  ],
+  "description": "modern search box with pills for restrictions",
+  "main": "lib/ttbox.js",
+  "license": "MIT",
+  "moduleType": [
+    "amd",
+    "globals",
+    "node"
+  ],
+  "keywords": [
+    "search",
+    "searchbox",
+    "pills"
+  ]
+}
