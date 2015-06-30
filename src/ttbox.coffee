@@ -164,6 +164,7 @@ ttbox = (el, trigs...) ->
     stopsug = ->
         sugselect = sugmover = sugword = null
         render.unsuggest()
+        dispatch 'suggeststop'
 
     # close suggest when pills leave
     el.addEventListener 'ttbox:pillremove', stopsug

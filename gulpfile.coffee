@@ -31,3 +31,5 @@ gulp.task 'watch', ['compile'], ->
 
     # watch to recompile
     gulp.watch ['./src/*'], ['compile']
+
+gulp.task 'default', ['compile']
