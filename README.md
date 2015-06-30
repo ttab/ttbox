@@ -20,8 +20,127 @@ npm install -S ttbox
 ```bash
 bower install -S ttbox
 ```
+## API
 
+### ttbox(div, trig1, trig2, ...)
 
+Constructs a ttbox around a given div. Returns a façade for
+interacting with the box.
+
+#### Example
+
+```javascript
+ttbox($('#myinput'), ttbox.trig('@', {prefix:true}, ttbox.type('person', {
+    suggest: function(word, cb, type) {
+        ...
+    }
+})));
+```
+
+### ttbox.trig(symbol, opts, type or typelist)
+
+Declares a triggers with the nested types for that trigger.  Opts can
+be omitted.
+
+Options:
+
+* `prefix` boolean indicating whether trigger is a prefix
+* `className` items belonging to this trigger (suggest/pills) will
+  have this class.
+
+#### Example
+
+```javascript
+ttbox.trig('@', {
+    prefix: true,
+    className: 'persontrig'
+}, ttbox.type('person', { ... }));
+```
+
+### ttbox.type(name, opts)
+
+Declare a type belonging to a trigger. Opts can be omitted.
+
+Options:
+
+* `desc` description for this type. displayed in suggests.
+* `suggest` to do suggestions for input `function(word, callback, type)`
+* `html` to take control of what html represents the type in suggest
+  list. `function(word)` and return a string with the html.
+* `format` to get a chance to format (such as upper/lower-case) input
+  that wasn't controlled by a suggest.
+
+### Suggest returns:
+
+Callback can be provided with
+
+1. List of string
+2. List of objects with `{value:'value'}`
+
+Item options (for object form)
+
+* `value` mandatory unless `html` is provided.
+* `html` function to control html representation in suggests.
+* `desc` value description
+* `className` additional class in suggests.
+
+### Example
+
+Simplest form, no suggest.
+
+```javascript
+ttbox.type('mytype')
+```
+
+Suggest with fixed values returned
+
+```javascript
+ttbox.type('mytype', {
+    suggest: function(word, cb, type) {
+        cb(['my', 'list']);
+}});
+```
+
+Fixed list with descriptions
+
+```javascript
+ttbox.type('product', {
+    className: 'productype',
+    desc: 'my products',
+    suggest: function(word, cb, type) {
+      return cb([
+        {
+          value: 'PHOTO',
+          desc: 'All photos'
+          html: function() { ... }
+        }, {
+          value: 'VIDEO',
+          desc: 'All videos'
+        }
+      ].filter(function(i) {
+        return i.value.indexOf(word.toUpperCase()) === 0;
+      }));
+    },
+    format: function(t) {
+        return t.toUpperCase();
+    }
+});
+```
+
+### ttbox.divider(title)
+
+Special type inserted in type lists to `ttbox.trig` to make visual dividers.
+
+#### Example
+
+```javascript
+var types = [
+    ttbox.divider('Limit result to'),
+    ttbox.type('product', { ... })
+    ...
+    ttbox.divider('Other options'),
+    ttbox.type('quality', { ... })
+```
 
 License
 -------
