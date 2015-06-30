@@ -11,6 +11,14 @@ last  = (as) -> as?[as.length - 1]
 find  = (as, fn) -> return a for a in as when fn(a)
 isIE  = -> glob.navigator.userAgent.indexOf('MSIE') > 0
 
+# define an invisible property
+def = (obj, props) -> for name, value of props
+    Object.defineProperty obj, name,
+        enumerable: false
+        configurable: false
+        value: value
+    null
+
 zwnj         = "​" # &zwnj;
 filterA0     = (s) -> s.replace /\u00a0/g, ' ' # nbsp
 filterZwnj   = (s) -> s.replace /\u200b/g, ''
@@ -180,8 +188,8 @@ ttbox = (el, trigs...) ->
         else if types.length == 1 and not sugmover
             # one possible solution
             if wastrig
-                # for trigger char, we select straight away
-                selectType types[0]
+                # for trigger char, we select the first type straight away
+                selectType find types, (t) -> !t.divider
         else
             # when the key input was the trigger and there are
             # multiple possible values, position. move to just before
@@ -304,16 +312,6 @@ ttbox = (el, trigs...) ->
     return façade
 
 
-# Factory function for making types.
-#
-# Usage:
-#   var types = [
-#     ttbox.type('product', {suggest: function (txt, callback, opts) { ... } }),
-#     ttbox.type('person',  {suggest: function (txt, callback, opts) { ... } }),
-#   ]
-ttbox.type = (name, opts, types) -> new Type name, opts
-
-
 # Factory function for making triggers.
 #
 # Usage:
@@ -326,24 +324,42 @@ ttbox.trig = (symbol, opts, types) ->
     new Trigger symbol, opts, types
 
 
-# Helper method to make html for a suggest. Used as backup
-# if suggest items don't provide a .html() method.
-# ttbox.sugestHtml('word', 'wordispartof', 'some description')
-#   produces
+# Factory function for dividers in type lists
+#
+# Usage:
+#   var types = [
+#     ttbox.divider('Limit search on'),
+#     ttbox.type('product', {suggest: function (txt, callback, opts) { ... } }),
+#     ttbox.type('person',  {suggest: function (txt, callback, opts) { ... } }),
+#   ]
+ttbox.divider = (name, opts) -> new Type name, merge {
+    divider:true
+    html: -> "<div><hr><span>#{@name}</span></div>"
+}, opts
+
+
+# Factory function for making types.
+#
+# Usage:
+#   var types = [
+#     ttbox.type('product', {suggest: function (txt, callback, opts) { ... } }),
+#     ttbox.type('person',  {suggest: function (txt, callback, opts) { ... } }),
+#   ]
+ttbox.type = (name, opts, types) -> new Type name, opts
+
+
+# Helper method to make html for a suggest.
 # "<div><dfn><b>word</b>ispartof</dfn>: some description</div>"
-ttbox.suggestHtml = (word, name, desc = '') ->
+suggestHtml = (word, prefix, name, suffix, desc = '') ->
     return '<div></div>' unless name
     [high, unhigh] = if name.indexOf(word) == 0 then [word, name[word.length..]] else ["", name]
-    "<div><dfn><b>#{high}</b>#{unhigh}</dfn> #{desc}</div>"
-Type::html = (word) -> ttbox.suggestHtml word, @name, @desc
+    "<div><dfn>#{prefix}<b>#{high}</b>#{unhigh}#{suffix}</dfn> <span>#{desc}</span></div>"
+Type::html = (word) ->
+    if @trig.prefix
+        suggestHtml word, @trig.symbol, @name, "", @desc
+    else
+        suggestHtml word, "", @name, @trig.symbol, @desc
 
-# define an invisible property
-def = (obj, props) -> for name, value of props
-    Object.defineProperty obj, name,
-        enumerable: false
-        configurable: false
-        value: value
-    null
 
 # goes through an element parsing pills and
 # text into a datastructure
@@ -352,9 +368,10 @@ toHtml = (word) -> (item) ->
     if typeof item?.html == 'function'
         item.html(word)
     else if typeof item?.value == 'string'
-        ttbox.suggestHtml word, item.value
+        suggestHtml word, "", item.value, "", item.desc
     else
-        ttbox.suggestHtml word, item
+        suggestHtml word, "", item, ""
+
 
 # helper to turn an item into text
 toText = (item = '') ->
@@ -362,6 +379,7 @@ toText = (item = '') ->
         item.value
     else
         String(item)
+
 
 # jquery drawing hook
 def ttbox, jquery: ->
@@ -435,28 +453,36 @@ def ttbox, jquery: ->
         fn word, (list) ->
             # not requesting anymore
             $box().removeClass 'ttbox-suggest-request'
+            # local toHtml with word
+            locToHtml = toHtml(word)
             # turn list into html
-            html = list.map toHtml(word)
-            # append each element .html()
-            html.forEach (h) -> $sug.append $(h).addClass('ttbox-suggest-item')
+            list.forEach (l) ->
+                $h = $(locToHtml(l))
+                $h.addClass if l.divider
+                    'ttbox-suggest-divider'
+                else
+                    'ttbox-suggest-item'
+                $sug.append $h
+            # list without dividers
+            nodivid = list.filter (l) -> !l.divider
             previdx = null
             do selectIdx = (dostart = false) ->
                 return if idx < 0 and !dostart
                 idx = 0 if idx < 0
-                idx = list.length - 1 if idx >= list.length
+                idx = nodivid.length - 1 if idx >= nodivid.length
                 return if previdx == idx
                 previdx = idx
                 $sug.find('.ttbox-selected').removeClass('ttbox-selected')
-                $sug.children().eq(idx).addClass 'ttbox-selected'
-                selectcb list[idx]
+                $sug.children('.ttbox-suggest-item').eq(idx).addClass 'ttbox-selected'
+                selectcb nodivid[idx]
             # handle click on a suggest item
             $sug.click (ev) ->
                 ev.stopPropagation()
                 $it = $(ev.target).closest('.ttbox-suggest-item')
                 return unless $it.length
-                i = $sug.children().index $it
+                i = $sug.children('.ttbox-suggest-item').index $it
                 return unless i >= 0
-                selectcb list[i], true
+                selectcb nodivid[i], true
             # callback passed to parent for key navigation
             movecb (offs) ->
                 return unless offs

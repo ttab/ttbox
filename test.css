@@ -13,11 +13,7 @@ body {
 }
 
 #myinput {
-    width: 200px;
+    width: 400px;
     margin-bottom: 50px;
     line-height: 30px;
-}
-
-input {
-    width: 200px;
 }
