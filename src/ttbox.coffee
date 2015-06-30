@@ -391,7 +391,7 @@ def ttbox, jquery: ->
     # html for box
     html = '<div class="ttbox"><div class="ttbox-overflow">' +
         '<div class="ttbox-input" contenteditable="true"></div></div></div>'
-    suggest = '<div class="ttbox-suggest"></div>'
+    suggest = '<div class="ttbox-sug-overflow"><div class="ttbox-suggest"></div></div>'
     # cache of pill <pillid, pill> structures
     pills = {}
     # helper to tidy cache
@@ -430,7 +430,7 @@ def ttbox, jquery: ->
 
     # remove sugggest
     unsuggest: unsuggest = ->
-        $('.ttbox-suggest').remove()
+        $('.ttbox-sug-overflow').remove()
         $box().removeClass 'ttbox-showing-suggest'
 
     # start suggest
@@ -440,16 +440,21 @@ def ttbox, jquery: ->
         # find/create suggest-box
         $sug = $('.ttbox-suggest')
         unless $sug.length
-            $sug = $(suggest)
+            $overflw = $(suggest)
+            $sug = $overflw.find '.ttbox-suggest'
             # lock width to parent
-            $sug.width $box().outerWidth()
+            $overflw.width $box().outerWidth()
             # adjust for border of parent
             bord = parseInt $el.find('.ttbox-overflow').css('border-bottom-width')
-            $sug.css top:$el.outerHeight() - bord
+            $overflw.css top:$el.outerHeight() - bord
+            # append to box
+            $box().append $overflw
+            # indicate we are showing
+            $box().addClass('ttbox-showing-suggest')
         # empty suggest box to start fresh
         $sug.html(''); $sug.off()
         # class to hook styling when suggesting
-        $box().append($sug).addClass 'ttbox-showing-suggest'
+        $box().addClass('ttbox-suggest-request')
         # request to get suggest elements
         fn word, (list) ->
             # not requesting anymore
@@ -475,7 +480,9 @@ def ttbox, jquery: ->
                 return if previdx == idx
                 previdx = idx
                 $sug.find('.ttbox-selected').removeClass('ttbox-selected')
-                $sug.children('.ttbox-suggest-item').eq(idx).addClass 'ttbox-selected'
+                $sel = $sug.children('.ttbox-suggest-item').eq(idx)
+                $sel.addClass('ttbox-selected')
+                $sel[0]?.scrollIntoView()
                 selectcb nodivid[idx]
             # handle click on a suggest item, mousedown since click
             # will fight with focusout on the pill
