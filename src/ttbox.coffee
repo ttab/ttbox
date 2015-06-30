@@ -9,7 +9,9 @@ hold  = (ms, f) -> last = 0; tim = null; (as...) ->
     tim = setTimeout (->f as...), ms
 last  = (as) -> as?[as.length - 1]
 find  = (as, fn) -> return a for a in as when fn(a)
-isIE  = -> glob.navigator.userAgent.indexOf('MSIE') > 0
+
+isIE      = glob.navigator.userAgent.indexOf('MSIE') > 0
+isChrome  = glob.navigator.userAgent.indexOf('Chrome') > 0
 
 # define an invisible property
 def = (obj, props) -> for name, value of props
@@ -86,8 +88,9 @@ wordRangeAtCursor = ->
 
 entireTextAtCursor = ->
     r = cursor()
-    r.selectNodeContents r.startContainer
-    return r
+    t = r.cloneRange()
+    t.selectNodeContents t.startContainer
+    return t
 
 findInRange = (r, char) ->
     t = r.cloneRange()
@@ -135,7 +138,6 @@ ttbox = (el, trigs...) ->
         e = doc.createEvent 'Event'
         merge e, opts, {ttbox:façade}
         e.initEvent "ttbox:#{name}", true, false
-        console.log name, e
         el.dispatchEvent e
 
     update = hold 3, (char) ->
@@ -381,7 +383,6 @@ toText = (item = '') ->
     else
         String(item)
 
-
 # jquery drawing hook
 def ttbox, jquery: ->
 
@@ -422,7 +423,7 @@ def ttbox, jquery: ->
     values: ->
         ensureItems()
         Array::slice.call($el.find('.ttbox-input')[0].childNodes).map (n) ->
-            if n.nodeType == 1 and n.className == 'ttbox-pill'
+            if n.nodeType == 1 and n?.className?.indexOf('ttbox-pill') >= 0
                 pillfor n
             else if n.nodeType == 3
                 filter n.nodeValue
@@ -536,16 +537,29 @@ def ttbox, jquery: ->
             pill.ensureItem()
             format() if pill.item?._text
             dispatch 'pillfocusout', {pill}
+        # helper function to scoll pill into view
+        scrollIn = ->
+            $pill.after $t = $('<span style="width:1px">')
+            $t[0].scrollIntoView()
+            $t.remove()
+        # stop resize handles in IE
+        if isIE
+            $pill.on 'mousedown', (e) ->
+                e.preventDefault()
+                pill.setCursorIn()
+                return false
         # the pill facade
         pill = pills[id] = {
             id, trig, type, remove,
             # set the item value for this pill
             setItem: (@item) -> $span.text toText @item
+            # position in the pill value
+            setCursorIn: ->
+                scrollIn()
+                setCursorEl $span[0]
             # position the cursor after the pill
             setCursorAfter: ->
-                $pill.after $t = $('<span style="width:1px">')
-                $t[0].scrollIntoView()
-                $t.remove()
+                scrollIn()
                 setCursorEl $pill[0]?.nextSibling
         }
         def pill,
@@ -561,7 +575,7 @@ def ttbox, jquery: ->
             # position cursor in pill. do it later, because we
             # may have created a pill as a result of a mousedown click
             # on a suggest
-            later -> setCursorEl $span[0]
+            later -> pill.setCursorIn()
         $pill[0].scrollIntoView()
         @tidy()
         dispatch 'pilladd', {pill}
@@ -576,10 +590,11 @@ def ttbox, jquery: ->
         inp = $inp[0]
         # merge stuff together and remove empty textnodes.
         inp.normalize()
-        # first ensure there's a <br> at the end for non-IE
-        unless isIE() or $inp.children().last().is 'br'
-            $inp.find('br').remove()
-            $inp.append '<br>'
+        # first ensure there's a <br> at the end (or <i> for IE)
+        tag = if isIE then 'i' else 'br'
+        unless $inp.children().last().is tag
+            $inp.find("> #{tag}").remove()
+            $inp.append "<#{tag}>"
         childs = inp.childNodes
         first = childs[0]
         # ensure the whole things starts with a zwnj
@@ -590,13 +605,18 @@ def ttbox, jquery: ->
             appendAfter n, doc.createTextNode(zwnj)
         # move cursor to not be on bad element positions
         if r = cursor()
-            if r.startContainer == inp or r.endContainer == inp
+            if (r.startContainer == inp or r.endContainer == inp) and isChrome
                 cs = Array::slice.call childs
                 # current text node, then right, the left.
                 isText = (n) -> if n?.nodeType == 3 then n else null
                 i = r.startOffset
                 n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
                 setCursorPos r if n
+            # firefox manages to focus anything but the only
+            # contenteditable=true of the pill
+            paren = r.startContainer.parentNode
+            if paren?.nodeName != 'SPAN' and pill = pillfor paren
+                pill.setCursorIn()
         # remove any nested span in pills
         $el.find('.ttbox-pill span span').remove()
         # keep cache clean
