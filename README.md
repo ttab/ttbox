@@ -37,6 +37,21 @@ ttbox($('#myinput'), ttbox.trig('@', {prefix:true}, ttbox.type('person', {
 })));
 ```
 
+
+### The façade
+
+A façade is returned by the `ttbox` function and is provided in all events.
+
+#### façade.values()
+
+Returns the current values of the box.
+
+#### façade.addpill(type, item)
+
+Adds a new pill to the box. Item is optional.
+
+
+
 ### ttbox.trig(symbol, opts, type or typelist)
 
 Declares a triggers with the nested types for that trigger.  Opts can
@@ -56,6 +71,7 @@ ttbox.trig('@', {
     className: 'persontrig'
 }, ttbox.type('person', { ... }));
 ```
+
 
 ### ttbox.type(name, opts)
 
@@ -127,6 +143,7 @@ ttbox.type('product', {
 });
 ```
 
+
 ### ttbox.divider(title)
 
 Special type inserted in type lists to `ttbox.trig` to make visual dividers.
@@ -140,7 +157,23 @@ var types = [
     ...
     ttbox.divider('Other options'),
     ttbox.type('quality', { ... })
-```
+    ```
+
+
+## Events
+
+A number of events are dispatched on the DOM element provided.
+
+* `ttbox:init` after initialization.
+* `ttbox:suggesttypes` when there are multiple possible types to select from.
+* `ttbox:suggesttype` whenever one single type is highlighted (cursor move)
+* `ttbox:suggesttypeselect` when a type is selected
+* `ttbox:suggestitems` when there are multiple item choices
+* `ttbox:suggestitem` when a single item is highlighted (cursor move)
+* `ttbox:suggestitemselect` when a single item is selected
+* `ttbox:suggeststop` when suggest is hidden.
+* `ttbox:pilladd` when a pill is added
+* `ttbox:pillremove` when a pill is removed
 
 License
 -------
