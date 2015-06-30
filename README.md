@@ -157,7 +157,7 @@ var types = [
     ...
     ttbox.divider('Other options'),
     ttbox.type('quality', { ... })
-    ```
+```
 
 
 ## Events
