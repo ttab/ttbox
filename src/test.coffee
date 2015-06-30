@@ -4,6 +4,7 @@ lc = (s) -> s?.toLowerCase()
 this.b = ttbox $('#myinput'), ttbox.trig(':', [
     ttbox.divider 'Sökbegränsningar'
     ttbox.type 'produkt',
+        className: 'produkttype'
         desc: 'en produktkod'
         suggest: (word, cb, type) -> cb [
             {value:'FOTO',   desc:'Alla foton'}
@@ -30,7 +31,7 @@ this.b = ttbox $('#myinput'), ttbox.trig(':', [
     ttbox.type 'annat',
         desc: 'andra grejer'
         format: (t) -> t.toUpperCase()
-    ]), ttbox.trig('@', prefix:true,
+    ]), ttbox.trig('@', prefix:true, className:'persontrig',
         ttbox.type 'person',
             desc: 'Person'
             suggest: (word, cb, type) -> cb [

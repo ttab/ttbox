@@ -62,11 +62,12 @@
 }
 .ttbox-suggest-item {
     cursor: pointer;
-    padding: 0 20px;
+    padding: 0 10px 0 25px;
 }
 .ttbox-suggest-item dfn {
     display: inline-block;
     min-width: 70px;
+    position: relative;
 }
 .ttbox-suggest-item span {
     color: #ccc;
@@ -74,6 +75,10 @@
 .ttbox-suggest-divider {
     position: relative;
     padding: 0 10px;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    -o-user-select: none;
 }
 .ttbox-suggest-divider span {
     position: relative;
@@ -81,6 +86,7 @@
     background: white;
     color: #929292;
     padding-right: 20px;
+    cursor: default;
 }
 .ttbox-suggest-divider hr {
     position: absolute;
@@ -106,18 +112,29 @@
     min-width: 30px;
 }
 .ttbox-pill dfn {
-    padding: 0 3px 0 9px;
+    padding: 0 3px 0 12px;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    -o-user-select: none;
+    cursor: default;
+}
+.ttbox-pill-prefix dfn {
+    padding-right: 0;
 }
 .ttbox-pill-close {
     display: inline-block;
     position: absolute;
     top: 0.1em;
-    left: 4px;
+    left: 7px;
     padding: 3px;
     line-height: 15px;
     cursor: pointer;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    -o-user-select: none;
 }
 .ttbox-pill span {
-    min-width: 2px;
-    text-align: center;
+    min-width: 5px;
 }

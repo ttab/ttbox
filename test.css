@@ -17,3 +17,13 @@ body {
     margin-bottom: 50px;
     line-height: 30px;
 }
+
+.ttbox-pill.persontrig {
+    background: #1269b0;
+    border-color: #1266ab;
+}
+
+.ttbox-pill.produkttype {
+    background: #c94646;
+    border-color: #c84242;
+}

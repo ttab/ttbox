@@ -241,7 +241,8 @@ ttbox = (el, trigs...) ->
         # helper when we decide on an item
         selectItem = (item) ->
             pill.setItem item
-            pill.setCursorAfter()
+            # later since it may be select from click, which is mousedown
+            later -> pill.setCursorAfter()
             dispatch 'suggestitemselect', {pill, item}
         render.suggest fnvals, r, -1, setSugmover, (item, doset) ->
             sugselect = ->
@@ -462,6 +463,7 @@ def ttbox, jquery: ->
                     'ttbox-suggest-divider'
                 else
                     'ttbox-suggest-item'
+                $h.addClass l.className if l.className
                 $sug.append $h
             # list without dividers
             nodivid = list.filter (l) -> !l.divider
@@ -475,8 +477,9 @@ def ttbox, jquery: ->
                 $sug.find('.ttbox-selected').removeClass('ttbox-selected')
                 $sug.children('.ttbox-suggest-item').eq(idx).addClass 'ttbox-selected'
                 selectcb nodivid[idx]
-            # handle click on a suggest item
-            $sug.click (ev) ->
+            # handle click on a suggest item, mousedown since click
+            # will fight with focusout on the pill
+            $sug.on 'mousedown', (ev) ->
                 ev.stopPropagation()
                 $it = $(ev.target).closest('.ttbox-suggest-item')
                 return unless $it.length
@@ -502,6 +505,10 @@ def ttbox, jquery: ->
             "<dfn>#{dfn}</dfn><span></span></div>")
         $pill.find('*').andSelf().prop 'contenteditable', 'false'
         ($span = $pill.find('span')).prop 'contenteditable', 'true'
+        # if prefix style pill
+        $pill.addClass 'ttbox-pill-prefix' if type.trig.prefix
+        $pill.addClass type.trig.className if type.trig.className
+        $pill.addClass type.className if type.className
         # generate id to associate with mem structure
         id = "ttboxpill#{Date.now()}"
         $pill.attr 'id', id
@@ -518,6 +525,7 @@ def ttbox, jquery: ->
         format = -> $span.text type.format $span.text()
         # maybe run format on focusout
         $pill.on 'focusout', ->
+            # dispatch later to allow for click on suggest
             pill.ensureItem()
             format() if pill.item?._text
             dispatch 'pillfocusout', {pill}
@@ -543,8 +551,10 @@ def ttbox, jquery: ->
             # set the value
             pill.setItem item
         else
-            # position cursor in pill
-            setCursorEl $span[0]
+            # position cursor in pill. do it later, because we
+            # may have created a pill as a result of a mousedown click
+            # on a suggest
+            later -> setCursorEl $span[0]
         $pill[0].scrollIntoView()
         @tidy()
         dispatch 'pilladd', {pill}
