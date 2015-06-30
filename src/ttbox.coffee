@@ -14,6 +14,7 @@ isIE  = -> glob.navigator.userAgent.indexOf('MSIE') > 0
 zwnj         = "​" # &zwnj;
 filterA0     = (s) -> s.replace /\u00a0/g, ' ' # nbsp
 filterZwnj   = (s) -> s.replace /\u200b/g, ''
+filter       = (s) -> filterA0 filterZwnj s
 appendAfter  = (el, node) -> el.parentNode.insertBefore(node, el.nextSibling)
 appendBefore = (el, node) -> el.parentNode.insertBefore(node, el)
 hexdump      = (s) -> (c.charCodeAt(0).toString(16) for c in s).join(' ')
@@ -54,7 +55,7 @@ skipZwnj = (d, end) ->
 cursor = -> s = doc.getSelection(); if s.rangeCount then s.getRangeAt(0) else null
 
 # filter the range to get rid of unwanted chars
-rangeStr = (r) -> filterZwnj filterA0 r.toString()
+rangeStr = (r) -> filter r.toString()
 
 firstIsWhite = (s) -> /^\s.*/.test(s ? '')
 lastIsWhite  = (s) -> /.*\s$/.test(s ? '')
@@ -74,6 +75,11 @@ wordRangeAtCursor = ->
     # one back again
     t.setEnd t.endContainer, t.endOffset - 1 if lastIsWhite rangeStr t
     return t
+
+entireTextAtCursor = ->
+    r = cursor()
+    r.selectNodeContents r.startContainer
+    return r
 
 findInRange = (r, char) ->
     t = r.cloneRange()
@@ -112,7 +118,7 @@ ttbox = (el, trigs...) ->
 
     # exposed operations
     façade = {
-        value: render.value
+        values: render.values
         addpill: (type, item) ->
             render.pillify cursor(), type, item
     }
@@ -201,14 +207,14 @@ ttbox = (el, trigs...) ->
             sugselect() if doset
 
     handlepill = ->
-        return unless r = wordRangeAtCursor()
+        return unless r = entireTextAtCursor()
         return unless pill = render.pillfor(r.startContainer?.parentNode)
         return unless typeof pill.type?.suggest == 'function'
         # definitely a suggest
         fnvals = (word, cb) -> pill.type.suggest word, cb, pill.type, pill.trig
         # helper when we decide on an item
         selectItem = (item) ->
-            pill.setitem item
+            pill.setItem item
             pill.setCursorAfter()
         render.suggest fnvals, r, -1, setSugmover, (item, doset) ->
             sugselect = ->
@@ -326,7 +332,7 @@ toHtml = (word) -> (item) ->
         ttbox.suggestHtml word, item
 
 # helper to turn an item into text
-toText = (item) ->
+toText = (item = '') ->
     if typeof item?.value == 'string'
         item.value
     else
@@ -338,41 +344,67 @@ def ttbox, jquery: ->
     $    = null # set on init
     $el  = null # set on init
     $box = -> $el.find('.ttbox')
+    # html for box
     html = '<div class="ttbox"><div class="ttbox-overflow">' +
         '<div class="ttbox-input" contenteditable="true"></div></div></div>'
     suggest = '<div class="ttbox-suggest"></div>'
+    # the current word suggest triggered for.
     cursugword = null
-    pills = {} # <pillid, pill>
+    # cache of pill <pillid, pill> structures
+    pills = {}
+    # helper to tidy cache
     tidypills = hold 5000, ->
         present = $el.find('.ttbox-pill').map(-> $(@).attr 'id').toArray()
         delete pills[id] for id in Object.keys(pills) when present.indexOf(id) < 0
         null
+    # return the pill structure for an element
+    pillfor = (el) -> pills[$(el).closest('.ttbox-pill').attr('id')]
+    # go through cache and ensure all pills have the item value of the
+    # element value.
+    ensureItems = ->
+        pill.ensureItem() for k, pill of pills
+        null
 
+    # initialise box
     init: (el) ->
         throw new Error("Didn't find jQuery") unless $ = jQuery
         $el = $(el)
         $el[0]
+
+    # draw stuff and hook up event handlers
     draw: (handlers) ->
         $el.html html
         $el.on(event, handler) for event, handler of handlers
-    value: ->
-        Array::splice.call($el.find('.ttbox-input')[0].childNodes).map (n) ->
-            console.log n
+
+    # return an array of values for the box
+    values: ->
+        ensureItems()
+        Array::slice.call($el.find('.ttbox-input')[0].childNodes).map (n) ->
+            if n.nodeType == 1 and n.className == 'ttbox-pill'
+                pillfor n
+            else if n.nodeType == 3
+                filter n.nodeValue
+        .filter (i) -> i
+
+    # remove sugggest
     unsuggest: ->
         $('.ttbox-suggest').remove()
         $box().removeClass 'ttbox-showing-suggest'
         cursugword = null
+
+    # start suggest
     suggest: (fn, range, idx, movecb, selectcb) ->
         # the current word
         word = rangeStr(range)
         # find/create suggest-box
         $sug = $('.ttbox-suggest')
-        $sug = $(suggest) unless $sug.length
-        # lock width to parent
-        $sug.width $el.outerWidth()
-        # adjust for border of parent
-        bord = parseInt $el.find('.ttbox-overflow').css('border-bottom-width')
-        $sug.css top:$el.outerHeight() - bord
+        unless $sug.length
+            $sug = $(suggest)
+            # lock width to parent
+            $sug.width $box().outerWidth()
+            # adjust for border of parent
+            bord = parseInt $el.find('.ttbox-overflow').css('border-bottom-width')
+            $sug.css top:$el.outerHeight() - bord
         # dont suggest for same word again
         return if cursugword == word
         cursugword = word
@@ -408,6 +440,8 @@ def ttbox, jquery: ->
                 return unless offs
                 idx = idx + offs
                 selectIdx true
+
+    # insert a pill for type/item at given range
     pillify: (range, type, item) ->
         # the trig is read from the type
         trig = type.trig
@@ -428,18 +462,35 @@ def ttbox, jquery: ->
         # the pill facade
         pill = pills[id] = {
             id, trig, type,
-            setitem: (@item) -> $span.text toText(@item)
+            # set the item value for this pill
+            setItem: (@item) -> $span.text toText(@item)
+            # position the cursor after the pill
+            setCursorAfter: ->
+                $pill.after $t = $('<span style="width:1px">')
+                $t[0].scrollIntoView()
+                $t.remove()
+                setCursorEl $pill[0]?.nextSibling
         }
-        def pill, setCursorAfter: -> setCursorEl $pill[0]?.nextSibling
+        def pill,
+            # ensure the text of the item corresponds to the value of @item
+            ensureItem: ->
+                stxt = $span.text().trim()
+                ptxt = toText pill?.item
+                pill.setItem value:stxt if stxt != ptxt
         if item
             # set the value
-            pill.setitem item
+            pill.setItem item
         else
             # position cursor in pill
             setCursorEl $span[0]
+        $pill[0].scrollIntoView()
         @tidy()
         return pill
-    pillfor: (el) -> pills[$(el).closest('.ttbox-pill').attr('id')]
+
+    # return the pill for element
+    pillfor: pillfor
+
+    # keep input box tidy with various contenteditable bug corrections
     tidy: ->
         $inp = $el.find('.ttbox-input')
         inp = $inp[0]
@@ -451,7 +502,7 @@ def ttbox, jquery: ->
             $inp.append '<br>'
         childs = inp.childNodes
         first = childs[0]
-        # now ensure the whole things starts with a zwnj
+        # ensure the whole things starts with a zwnj
         if first?.nodeType != 3 or first?.nodeValue?[0] != zwnj
             $inp[0].insertBefore doc.createTextNode(zwnj), first
         # ensure there's always a zwnj after every element node
@@ -465,9 +516,7 @@ def ttbox, jquery: ->
                 isText = (n) -> if n?.nodeType == 3 then n else null
                 i = r.startOffset
                 n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
-                if n
-                    r.setStart n, 0
-                    r.setEnd n, 0
+                setCursorPos r if n
         # remove any nested span in pills
         $el.find('.ttbox-pill span span').remove()
         # keep cache clean

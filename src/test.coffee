@@ -1,7 +1,7 @@
 
 lc = (s) -> s?.toLowerCase()
 
-ttbox $('#myinput'), ttbox.trig(':', [
+this.b = ttbox $('#myinput'), ttbox.trig(':', [
         ttbox.type 'produkt',
             suggest: (word, cb, type) -> cb [
                 {value:'FOTO',   desc:'Alla foton'}
