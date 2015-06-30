@@ -136,9 +136,8 @@ ttbox = (el, trigs...) ->
         wastrig = char == trig.symbol
         # helper when finished selecting a type
         selectType = (type) ->
-            #trange.deleteContents()
-            #trange.insertNode doc.createTextNode type.name
             render.pillify range, trig, type
+            update()
         if types.length == 0
             stopsug()
         else if types.length == 1 and not sugmover
@@ -164,6 +163,7 @@ ttbox = (el, trigs...) ->
             stopsug()
             # the type is selected
             selectType item
+            return true # indicate handled
         # if there is only one, set it as possible for return key
         sugselect = sugselectfor types[0] if types.length == 1
         # render suggestions
@@ -177,14 +177,27 @@ ttbox = (el, trigs...) ->
         return unless typeof pill.type?.suggest == 'function'
         # definitely a suggest
         fnvals = (word, cb) -> pill.type.suggest word, cb, pill.type, pill.trig
+        # helper when we decide on an item
+        selectItem = (item) ->
+            pill.select item
+            r.deleteContents()
+            r.insertNode doc.createTextNode toText(item)
+            r.selectNodeContents pill.sibling()
+            setCursorPos r, 0
         render.suggest fnvals, r, -1, setSugmover, (item, doset) ->
-            console.log item, doset
-        true # signal we dealt with it
+            sugselect = ->
+                # stop suggesting
+                stopsug()
+                # select the item
+                selectItem item
+                return true # indicate handled
+            sugselect() if doset
+        return true # signal we dealt with it
 
     # move the input out of a pill (if we're in a pill)
     pilljump = ->
         return unless r = cursor()
-        return unless sib = render.pillsibling(r.startContainer?.parentNode)
+        return unless sib = render.pillfor(r.startContainer?.parentNode)?.sibling()
         r.selectNodeContents sib
         setCursorPos r, 0
 
@@ -198,7 +211,7 @@ ttbox = (el, trigs...) ->
 
             if e.keyCode == 13
                 e.preventDefault() # dont want DOM change
-                sugselect?()
+                return if sugselect?()
                 return if pilljump()
 
             if sugmover
@@ -261,8 +274,9 @@ ttbox.trig = (symbol, opts, types) ->
 #   produces
 # "<div><dfn><b>word</b>ispartof</dfn>: some description</div>"
 ttbox.suggestHtml = (word, name, desc = '') ->
+    return '<div></div>' unless name
     [high, unhigh] = if name.indexOf(word) == 0 then [word, name[word.length..]] else ["", name]
-    "<div><dfn><b>#{high}</b>#{unhigh}</dfn>: #{desc}</div>"
+    "<div><dfn><b>#{high}</b>#{unhigh}</dfn> #{desc}</div>"
 Type::html = (word) -> ttbox.suggestHtml word, @name, @desc
 
 # define an invisible property on ttbox
@@ -280,6 +294,21 @@ valueOf = (pel) -> [].map.call pel.childNodes, (el) ->
     else
         {type:'_text',value:el.nodeValue}
 
+# helper to turn a suggest item into html
+toHtml = (word) -> (item) ->
+    if typeof item?.html == 'function'
+        item.html(word)
+    else if typeof item?.value == 'string'
+        ttbox.suggestHtml word, item.value
+    else
+        ttbox.suggestHtml word, item
+
+# helper to turn an item into text
+toText = (item) ->
+    if typeof item?.value == 'string'
+        item.value
+    else
+        String(item)
 
 # jquery drawing hook
 do ->
@@ -330,8 +359,10 @@ do ->
             fn word, (list) ->
                 # not requesting anymore
                 $box().removeClass 'ttbox-suggest-request'
+                # turn list into html
+                html = list.map toHtml(word)
                 # append each element .html()
-                list.forEach (l) -> $sug.append $(l.html(word)).addClass('ttbox-suggest-item')
+                html.forEach (h) -> $sug.append $(h).addClass('ttbox-suggest-item')
                 do selectIdx = (dostart = false) ->
                     return if idx < 0 and !dostart
                     idx = 0 if idx < 0
@@ -369,9 +400,11 @@ do ->
             r.selectNodeContents $span[0]
             setCursorPos r, 0
             @tidy()
-            value = -> $span.text()
-            return pills[id] = {id, trig, type, value}
-        pillsibling: (el) -> $(el).closest('.ttbox-pill')?[0]?.nextSibling
+            return pills[id] = {
+                id, trig, type,
+                sibling: -> $pill[0]?.nextSibling
+                select: (@item) ->
+            }
         pillfor: (el) -> pills[$(el).closest('.ttbox-pill').attr('id')]
         tidy: ->
             $inp = $el.find('.ttbox-input')

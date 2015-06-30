@@ -1,12 +1,32 @@
 
+lc = (s) -> s?.toLowerCase()
+
 ttbox $('#myinput'), ttbox.trig(':', [
         ttbox.type 'produkt',
-            suggest: (txt, cb, type) -> console.log 'sug1', txt
+            suggest: (word, cb, type) -> cb [
+                {value:'FOTO',   desc:'Alla foton'}
+                {value:'FOBHUS', desc:'Foto bildhuset'}
+                {value:'FODN',   desc:'Foto DN'}
+                {value:'FOEKO',  desc:'Foto Ekonomi'}
+            ].filter (i) -> lc(i.value).indexOf(lc word) == 0
         ttbox.type 'pris',
-            suggest: (txt, cb, type) -> console.log 'sug2', txt
+            suggest: (word, cb, type) -> cb [
+                '500kr'
+                '1000kr'
+                '1500kr'
+            ].filter (i) -> lc(i).indexOf(lc word) == 0
         ttbox.type 'fotograf',
-            suggest: (txt, cb, type) -> console.log 'sug3', txt
+            suggest: (word, cb, type) -> cb [
+                'Martin Algesten'
+                'Peter Johansson'
+                'Björn Allan Åhlberg'
+            ].filter (i) -> lc(i).indexOf(lc word) == 0
     ]), ttbox.trig('@', prefix:true,
         ttbox.type 'person',
-            suggest: (txt, cb, type) -> console.log 'sug4', txt
+            suggest: (word, cb, type) -> cb [
+                'bag'
+                'jej'
+                'mag'
+                'pjn'
+            ].filter (i) -> lc(i).indexOf(lc word) == 0
     )
