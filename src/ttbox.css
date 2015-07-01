@@ -8,10 +8,16 @@
     position: relative;
     box-sizing: border-box;
 }
+.ttbox dfn {
+    font-style: normal;
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+}
 
 .ttbox-overflow {
-    border: 1px solid #bbb;
-    border-radius: 3px;
+    /* border: 1px solid #bbb; */
+    /* border-radius: 3px; */
     overflow-x: auto;
     overflow-y: hidden;
 }
@@ -43,9 +49,9 @@
 .ttbox-sug-overflow {
     position: absolute;
     left: 0;
+    /* border: 1px solid #bbb; */
+    /* border-radius: 3px; */
     border-top: none;
-    border: 1px solid #bbb;
-    border-radius: 3px;
     border-top-left-radius: 0;
     border-top-right-radius: 0;
     border-top: none;
@@ -70,7 +76,6 @@
     padding: 0 10px 0 25px;
 }
 .ttbox-suggest-item dfn {
-    display: inline-block;
     min-width: 70px;
     position: relative;
 }
@@ -107,11 +112,11 @@
 
 .ttbox-pill {
     position: relative;
-    line-height: 1.8;
+    line-height: 24px;
     margin: 0 4px;
     background: #5cb85c;
     border: 1px solid #58b658;
-    border-radius: 14px;
+    border-radius: 3px;
     padding: 0 12px;
     color: white;
     min-width: 30px;
@@ -126,14 +131,17 @@
 }
 .ttbox-pill-prefix dfn {
     padding-right: 0;
+    display: block;
 }
 .ttbox-pill-close {
     display: inline-block;
     position: absolute;
-    top: 0.1em;
-    left: 7px;
-    padding: 3px;
-    line-height: 15px;
+    top: 0;
+    left: 0;
+    padding: 0 5px;
+    line-height: 22px;
+    height: 24px;
+    border-right: 1px solid rgba(255,255,255,0.2);
     cursor: pointer;
     -moz-user-select: none;
     -khtml-user-select: none;
