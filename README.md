@@ -50,6 +50,19 @@ Returns the current values of the box.
 
 Adds a new pill to the box. Item is optional.
 
+#### façade.clear()
+
+Clear the input
+
+#### façade.focus()
+
+Focus the input (or do nothing if cursor already there).
+
+#### façade.placeholder(txt)
+
+XXX TODO
+
+Set placeholder text (shown when input is empty).
 
 
 ### ttbox.trig(symbol, opts, type or typelist)

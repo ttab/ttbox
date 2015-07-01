@@ -94,7 +94,7 @@ wordRangeAtCursor = (pel) ->
     return t
 
 entireTextAtCursor = (pel) ->
-    r = cursor(pel)
+    return null unless r = cursor(pel)
     t = r.cloneRange()
     t.selectNodeContents t.startContainer
     return t
@@ -137,7 +137,15 @@ ttbox = (el, trigs...) ->
     # exposed operations
     façade = {
         values: render.values
-        addpill: (type, item) -> render.pillify cursor(el), type, item, dispatch
+        addpill: (type, item) ->
+            render.focus()
+            render.pillify cursor(el), type, item, dispatch
+        clear: ->
+            render.clear()
+            update()
+        focus: -> render.focus()
+        placeholder: (txt) -> # XXX fixme
+
     }
 
     # dispatch events on incoming div
@@ -152,6 +160,10 @@ ttbox = (el, trigs...) ->
         return if handlepill()
         # cursor range for word
         r = wordRangeAtCursor(el)
+        # XXX optimize with below?
+        unless r
+            stopsug?()
+            return
         word = rangeStr(r)
         # a trigger in the word?
         trig = find trigs, (t) -> t.re.test word
@@ -426,6 +438,16 @@ def ttbox, jquery: ->
     draw: (handlers) ->
         $el.html html
         $el.on(event, handler) for event, handler of handlers
+
+    # clear the state of the input
+    clear: ->
+        $el.find('.ttbox-input').empty()
+        @tidy()
+
+    # focus the input (if it doesn't already have focus)
+    focus: ->
+        return if cursor($el[0]) # already has focus
+        $el.find('.ttbox-input').focus()
 
     # return an array of values for the box
     values: ->
