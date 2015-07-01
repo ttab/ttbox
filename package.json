@@ -4,7 +4,7 @@
   "description": "modern search box with pills for restrictions",
   "main": "index.js",
   "scripts": {
-    "prepublish": "gulp compile"
+    "compile": "gulp compile"
   },
   "repository": {
     "type": "git",
