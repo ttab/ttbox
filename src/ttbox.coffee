@@ -50,8 +50,8 @@ class Trigger then constructor: (@symbol, opts, types) ->
         @re = RegExp "^(\\w*)\\#{@symbol}(\\w*)$"
 
 # Skip zwnj chars when moving left/right
-skipZwnj = (d, end) ->
-    return unless r = cursor()
+skipZwnj = (pel, d, end) ->
+    return unless r = cursor(pel)
     n = if end then r.endContainer else r.startContainer
     i = if end then r.endOffset else r.startOffset
     return unless n.nodeType == 3
@@ -61,8 +61,15 @@ skipZwnj = (d, end) ->
         setCursorPos r, i + d
         skipZwnj d, end # and maybe continue moving?
 
+isParent = (pn, n) ->
+    if n == null then false else if pn == n then true else isParent(pn, n.parentNode)
+
 # current cursor position
-cursor = -> s = doc.getSelection(); if s.rangeCount then s.getRangeAt(0) else null
+cursor = (pel) ->
+    s = doc.getSelection()
+    return unless s.rangeCount
+    r = s.getRangeAt(0)
+    if isParent(pel, r.startContainer) then r else null
 
 # filter the range to get rid of unwanted chars
 rangeStr = (r) -> filter r.toString()
@@ -70,8 +77,8 @@ rangeStr = (r) -> filter r.toString()
 firstIsWhite = (s) -> /^\s.*/.test(s ? '')
 lastIsWhite  = (s) -> /.*\s$/.test(s ? '')
 
-wordRangeAtCursor = ->
-    return null unless r = cursor()
+wordRangeAtCursor = (pel) ->
+    return null unless r = cursor(pel)
     t = r.cloneRange()
     # expand beginning
     while t.startOffset > 0 and not firstIsWhite rangeStr t
@@ -86,8 +93,8 @@ wordRangeAtCursor = ->
     t.setEnd t.endContainer, t.endOffset - 1 if lastIsWhite rangeStr t
     return t
 
-entireTextAtCursor = ->
-    r = cursor()
+entireTextAtCursor = (pel) ->
+    r = cursor(pel)
     t = r.cloneRange()
     t.selectNodeContents t.startContainer
     return t
@@ -130,7 +137,7 @@ ttbox = (el, trigs...) ->
     # exposed operations
     façade = {
         values: render.values
-        addpill: (type, item) -> render.pillify cursor(), type, item, dispatch
+        addpill: (type, item) -> render.pillify cursor(el), type, item, dispatch
     }
 
     # dispatch events on incoming div
@@ -144,7 +151,7 @@ ttbox = (el, trigs...) ->
         # a pill edit trumfs all
         return if handlepill()
         # cursor range for word
-        r = wordRangeAtCursor()
+        r = wordRangeAtCursor(el)
         word = rangeStr(r)
         # a trigger in the word?
         trig = find trigs, (t) -> t.re.test word
@@ -231,7 +238,7 @@ ttbox = (el, trigs...) ->
         dispatch 'suggesttypes', {trig, types}
 
     handlepill = ->
-        return unless r = entireTextAtCursor()
+        return unless r = entireTextAtCursor(el)
         return unless pill = render.pillfor(r.startContainer?.parentNode)
         return unless typeof pill.type?.suggest == 'function' # definitely a suggest
         # the current word
@@ -262,7 +269,7 @@ ttbox = (el, trigs...) ->
 
     # move the input out of a pill (if we're in a pill)
     pilljump = ->
-        return unless r = cursor()
+        return unless r = cursor(el)
         return unless pill = render.pillfor(r.startContainer?.parentNode)
         stopsug()
         pill.setCursorAfter()
@@ -605,7 +612,7 @@ def ttbox, jquery: ->
         for n in childs when n?.nodeType == 1 and n?.nextSibling?.nodeType == 1
             appendAfter n, doc.createTextNode(zwnj)
         # move cursor to not be on bad element positions
-        if r = cursor()
+        if r = cursor($el[0])
             if (r.startContainer == inp or r.endContainer == inp) and isChrome
                 cs = Array::slice.call childs
                 # current text node, then right, the left.
