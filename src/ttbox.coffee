@@ -111,15 +111,16 @@ findInRange = (r, char) ->
 setCursorPos = (r, pos) ->
     t = doc.createRange()
     t.setStart r.startContainer, pos
-    t.setEnd r.endContainer, pos
+    t.setEnd r.startContainer, pos
     sel = doc.getSelection()
     sel.removeAllRanges()
     sel.addRange t
 
-setCursorEl = (el) ->
+setCursorEl = (el, pos = 0) ->
     r = doc.createRange()
     r.selectNodeContents el
-    setCursorPos r, 0
+    pos = el?.nodeValue?.length if pos < 0
+    setCursorPos r, pos
 
 # Function to make ttbox out of an element with triggers
 #
@@ -134,26 +135,64 @@ ttbox = (el, trigs...) ->
     # and check we got a good thing back
     throw new Error('Need a DIV') unless el.tagName == 'DIV'
 
-    # exposed operations
-    façade = {
-        values: render.values
-        addpill: (type, item) ->
-            render.focus()
-            render.pillify cursor(el), type, item, dispatch
-        clear: ->
-            render.clear()
-            update()
-        focus: -> render.focus()
-        placeholder: (txt) -> # XXX fixme
-
-    }
-
     # dispatch events on incoming div
     dispatch = (name, opts) ->
         e = doc.createEvent 'Event'
         merge e, opts, {ttbox:façade}
         e.initEvent "ttbox:#{name}", true, false
         el.dispatchEvent e
+
+    # add a new pill to input
+    addpill = (type, item) ->
+        # either use cursor position, or the last child element
+        r = cursor(el) ? render.rangelast()
+        # implicitly does tidy
+        return render.pillify r, type, item, dispatch
+    addtext = (text) ->
+        # either use cursor position, or the last child element
+        r = cursor(el) ? render.rangelast()
+        r.insertNode doc.createTextNode(text)
+        render.tidy()
+        return r
+    clear = ->
+        render.clear()
+        update()
+    trigger = (symbol) ->
+        # make sure contiguous text nodes
+        render.tidy()
+        render.focus() unless cursor(el)
+        # we want to be to the right of any zwnj
+        # in the current text block
+        skipZwnj el, 1
+        # get the current word
+        r = wordRangeAtCursor(el)
+        str = rangeStr(r)
+        # insert space if we have content beforehand
+        insert = if str == '' then symbol else " #{symbol}"
+        cursor(el).insertNode doc.createTextNode insert
+        # make contiguous text nodes
+        render.tidy()
+        # position at the very end of this
+        r = entireTextAtCursor(el)
+        setCursorPos r, r.endOffset - symbol.length
+        # trigger suggest
+        update()
+
+    # exposed operations
+    façade = {
+        addpill, addtext, render, clear, trigger
+        values: -> render.values()
+        setvalues: (values) ->
+            clear()
+            values.forEach (v) ->
+                if typeof v == 'string'
+                    addtext v
+                else
+                    addpill v.type, v.item
+            update()
+        focus: -> render.focus()
+        placeholder: (txt) -> # XXX fixme
+    }
 
     update = hold 3, (char) ->
         # a pill edit trumfs all
@@ -297,8 +336,12 @@ ttbox = (el, trigs...) ->
 
             if e.keyCode == 13
                 e.preventDefault() # dont want DOM change
-                return if sugselect?()
-                return if pilljump()
+                if sugselect?()
+                    e.stopPropagation()
+                    return
+                if pilljump()
+                    e.stopPropagation()
+                    return
 
             if sugmover
                 if e.keyCode == 38      # up
@@ -309,9 +352,9 @@ ttbox = (el, trigs...) ->
                     return sugmover(+1)
 
             if e.keyCode in [37, 8]
-                skipZwnj -1, e.shiftKey # skip zwnj backwards to first non-zwnj pos
+                skipZwnj el, -1, e.shiftKey # skip zwnj backwards to first non-zwnj pos
             else if e.keyCode in [39, 46]
-                skipZwnj +1, e.shiftKey # skip zwnj forwards to first non-zwnj pos
+                skipZwnj el, +1, e.shiftKey # skip zwnj forwards to first non-zwnj pos
 
             update() # do an update, but may cancel with keypress to get char
 
@@ -428,6 +471,45 @@ def ttbox, jquery: ->
         pill.ensureItem() for k, pill of pills
         null
 
+    # call often. fix things.
+    tidy = ->
+        $inp = $el.find('.ttbox-input')
+        inp = $inp[0]
+        # merge stuff together and remove empty textnodes.
+        inp.normalize()
+        # first ensure there's a <br> at the end (or <i> for IE)
+        tag = if isIE then 'i' else 'br'
+        unless $inp.children().last().is tag
+            $inp.find("> #{tag}").remove()
+            $inp.append "<#{tag}>"
+        childs = inp.childNodes
+        first = childs[0]
+        # ensure the whole things starts with a zwnj
+        if first?.nodeType != 3 or first?.nodeValue?[0] != zwnj
+            $inp[0].insertBefore doc.createTextNode(zwnj), first
+        # ensure there's always a zwnj after every element node
+        for n in childs when n?.nodeType == 1 and n?.nextSibling?.nodeType == 1
+            appendAfter n, doc.createTextNode(zwnj)
+        # move cursor to not be on bad element positions
+        if r = cursor($el[0])
+            if (r.startContainer == inp or r.endContainer == inp) and isChrome
+                cs = Array::slice.call childs
+                # current text node, then right, the left.
+                isText = (n) -> if n?.nodeType == 3 then n else null
+                i = r.startOffset
+                n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
+                setCursorPos r if n
+            # firefox manages to focus anything but the only
+            # contenteditable=true of the pill
+            paren = r.startContainer.parentNode
+            if paren?.nodeName != 'SPAN' and pill = pillfor paren
+                pill.setCursorIn()
+        # remove any nested span in pills
+        $el.find('.ttbox-pill span span').remove()
+        # keep cache clean
+        tidypills()
+        null
+
     # initialise box
     init: (el) ->
         throw new Error("Didn't find jQuery") unless $ = jQuery
@@ -442,12 +524,15 @@ def ttbox, jquery: ->
     # clear the state of the input
     clear: ->
         $el.find('.ttbox-input').empty()
-        @tidy()
+        tidy()
 
     # focus the input (if it doesn't already have focus)
     focus: ->
         return if cursor($el[0]) # already has focus
-        $el.find('.ttbox-input').focus()
+        tidy() # ensure we have a last node to position before
+        ns = $el.find('.ttbox-input')[0].childNodes
+        n = ns[ns.length - 2]
+        setCursorEl n, -1
 
     # return an array of values for the box
     values: ->
@@ -474,7 +559,7 @@ def ttbox, jquery: ->
             $overflw = $(suggest)
             $sug = $overflw.find '.ttbox-suggest'
             # lock width to parent
-            $overflw.width $box().outerWidth()
+            $overflw.css 'min-width', $box().outerWidth()
             # adjust for border of parent
             bord = parseInt $el.find('.ttbox-overflow').css('border-bottom-width')
             $overflw.css top:$el.outerHeight() - bord
@@ -590,7 +675,8 @@ def ttbox, jquery: ->
             # position the cursor after the pill
             setCursorAfter: ->
                 scrollIn()
-                setCursorEl $pill[0]?.nextSibling
+                sib = $pill[0]?.nextSibling
+                setCursorEl sib if sib
         }
         def pill,
             # ensure the text of the item corresponds to the value of @item
@@ -598,6 +684,8 @@ def ttbox, jquery: ->
                 stxt = $span.text().trim()
                 ptxt = toText pill?.item
                 pill.setItem {value:stxt, _text:true} if stxt != ptxt
+        scrollIn()
+        tidy()
         if item
             # set the value
             pill.setItem item
@@ -606,8 +694,6 @@ def ttbox, jquery: ->
             # may have created a pill as a result of a mousedown click
             # on a suggest
             later -> pill.setCursorIn()
-        $pill[0].scrollIntoView()
-        @tidy()
         dispatch 'pilladd', {pill}
         return pill
 
@@ -615,43 +701,17 @@ def ttbox, jquery: ->
     pillfor: pillfor
 
     # keep input box tidy with various contenteditable bug corrections
-    tidy: ->
-        $inp = $el.find('.ttbox-input')
-        inp = $inp[0]
-        # merge stuff together and remove empty textnodes.
-        inp.normalize()
-        # first ensure there's a <br> at the end (or <i> for IE)
-        tag = if isIE then 'i' else 'br'
-        unless $inp.children().last().is tag
-            $inp.find("> #{tag}").remove()
-            $inp.append "<#{tag}>"
-        childs = inp.childNodes
-        first = childs[0]
-        # ensure the whole things starts with a zwnj
-        if first?.nodeType != 3 or first?.nodeValue?[0] != zwnj
-            $inp[0].insertBefore doc.createTextNode(zwnj), first
-        # ensure there's always a zwnj after every element node
-        for n in childs when n?.nodeType == 1 and n?.nextSibling?.nodeType == 1
-            appendAfter n, doc.createTextNode(zwnj)
-        # move cursor to not be on bad element positions
-        if r = cursor($el[0])
-            if (r.startContainer == inp or r.endContainer == inp) and isChrome
-                cs = Array::slice.call childs
-                # current text node, then right, the left.
-                isText = (n) -> if n?.nodeType == 3 then n else null
-                i = r.startOffset
-                n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
-                setCursorPos r if n
-            # firefox manages to focus anything but the only
-            # contenteditable=true of the pill
-            paren = r.startContainer.parentNode
-            if paren?.nodeName != 'SPAN' and pill = pillfor paren
-                pill.setCursorIn()
-        # remove any nested span in pills
-        $el.find('.ttbox-pill span span').remove()
-        # keep cache clean
-        tidypills()
-        null
+    tidy: tidy
+
+    # range for last input element
+    rangelast: ->
+        tidy()
+        ns = $el.find('.ttbox-input')[0].childNodes
+        n = ns[ns.length-2]
+        r = doc.createRange()
+        r.setStart n, n.nodeValue.length
+        r.setEnd n, n.nodeValue.length
+        return r
 
 # use jquery render default
 def ttbox, render: ttbox.jquery

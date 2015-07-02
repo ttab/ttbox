@@ -74,6 +74,7 @@
 .ttbox-suggest-item {
     cursor: pointer;
     padding: 0 10px 0 25px;
+    white-space: nowrap;
 }
 .ttbox-suggest-item dfn {
     min-width: 70px;
