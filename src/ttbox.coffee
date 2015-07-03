@@ -703,7 +703,7 @@ def ttbox, jquery: ->
             ensureItem: ->
                 stxt = $span.text().trim()
                 ptxt = toText pill?.item
-                pill.setItem {value:stxt, _text:true} if stxt != ptxt
+                pill.item = {value:stxt, _text:true} if stxt != ptxt
         scrollIn()
         tidy()
         if item
