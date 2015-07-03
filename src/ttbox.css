@@ -152,3 +152,16 @@
 .ttbox-pill span {
     min-width: 5px;
 }
+
+.ttbox-placeholder {
+    display: none;
+    opacity: 0.4;
+    position: absolute;
+    top: 0;
+    left: 5px;
+    pointer-events: none;
+    -moz-user-select: none;
+    -khtml-user-select: none;
+    -webkit-user-select: none;
+    -o-user-select: none;
+}

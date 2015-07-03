@@ -10,8 +10,10 @@ hold  = (ms, f) -> last = 0; tim = null; (as...) ->
 last  = (as) -> as?[as.length - 1]
 find  = (as, fn) -> return a for a in as when fn(a)
 
-isIE      = glob.navigator.userAgent.indexOf('MSIE') > 0
-isChrome  = glob.navigator.userAgent.indexOf('Chrome') > 0
+UA = glob?.navigator?.userAgent
+[isIE, IEVer] = /MSIE ([0-9]{1,}[.0-9]{0,})/.exec(UA) ? []
+IEVer = parseInt IEVer if IEVer
+isChrome  = UA.indexOf('Chrome') > 0
 
 # define an invisible property
 def = (obj, props) -> for name, value of props
@@ -108,7 +110,7 @@ findInRange = (r, char) ->
         return i if t.toString() == char
     return -1
 
-setCursorPos = (r, pos) ->
+setCursorPos = (r, pos = 0) ->
     t = doc.createRange()
     t.setStart r.startContainer, pos
     t.setEnd r.startContainer, pos
@@ -160,7 +162,7 @@ ttbox = (el, trigs...) ->
     trigger = (symbol) ->
         # make sure contiguous text nodes
         render.tidy()
-        render.focus() unless cursor(el)
+        render.focus() # ensure we have focus
         # we want to be to the right of any zwnj
         # in the current text block
         skipZwnj el, 1
@@ -191,10 +193,21 @@ ttbox = (el, trigs...) ->
                     addpill v.type, v.item
             update()
         focus: -> render.focus()
-        placeholder: (txt) -> # XXX fixme
+        placeholder: (txt) ->
+            render.setPlaceholder(txt)
+            update() # toggle placeholder
     }
 
+    prevvalues = []
+
     update = hold 3, (char) ->
+        # the current values
+        values = render.values()
+        # show placeholder if it's empty
+        render.togglePlaceholder values.length == 0
+        unless values.reduce ((p, c, i) -> p and c == prevvalues[i]), true
+            prevvalues = values
+            dispatch 'change', {values}
         # a pill edit trumfs all
         return if handlepill()
         # cursor range for word
@@ -225,7 +238,9 @@ ttbox = (el, trigs...) ->
         dispatch 'suggeststop'
 
     # close suggest when pills leave
-    el.addEventListener 'ttbox:pillremove', stopsug
+    el.addEventListener 'ttbox:pillremove', ->
+        stopsug()
+        update() # trigger value-change
     # close suggest when pill lose focus
     el.addEventListener 'ttbox:pillfocusout', stopsug
 
@@ -454,7 +469,8 @@ def ttbox, jquery: ->
     $box = -> $el.find('.ttbox')
     # html for box
     html = '<div class="ttbox"><div class="ttbox-overflow">' +
-        '<div class="ttbox-input" contenteditable="true"></div></div></div>'
+        '<div class="ttbox-input" contenteditable="true"></div></div>' +
+        '<div class="ttbox-placeholder"></div></div>'
     suggest = '<div class="ttbox-sug-overflow"><div class="ttbox-suggest"></div></div>'
     # cache of pill <pillid, pill> structures
     pills = {}
@@ -490,22 +506,24 @@ def ttbox, jquery: ->
         # ensure there's always a zwnj after every element node
         for n in childs when n?.nodeType == 1 and n?.nextSibling?.nodeType == 1
             appendAfter n, doc.createTextNode(zwnj)
+        # remove any nested span in pills
+        $el.find('.ttbox-pill span span').remove()
+        # again, ensure contigous nodes
+        inp.normalize()
         # move cursor to not be on bad element positions
         if r = cursor($el[0])
-            if (r.startContainer == inp or r.endContainer == inp) and isChrome
+            if (r.startContainer == inp or r.endContainer == inp)
                 cs = Array::slice.call childs
                 # current text node, then right, the left.
                 isText = (n) -> if n?.nodeType == 3 then n else null
                 i = r.startOffset
                 n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
-                setCursorPos r if n
+                setCursorEl n if n
             # firefox manages to focus anything but the only
             # contenteditable=true of the pill
             paren = r.startContainer.parentNode
             if paren?.nodeName != 'SPAN' and pill = pillfor paren
                 pill.setCursorIn()
-        # remove any nested span in pills
-        $el.find('.ttbox-pill span span').remove()
         # keep cache clean
         tidypills()
         null
@@ -604,6 +622,7 @@ def ttbox, jquery: ->
             # will fight with focusout on the pill
             $sug.on 'mousedown', (ev) ->
                 ev.stopPropagation()
+                ev.preventDefault() # no lose focus
                 $it = $(ev.target).closest('.ttbox-suggest-item')
                 return unless $it.length
                 i = $sug.children('.ttbox-suggest-item').index $it
@@ -677,6 +696,7 @@ def ttbox, jquery: ->
                 scrollIn()
                 sib = $pill[0]?.nextSibling
                 setCursorEl sib if sib
+                skipZwnj $el[0], +1 # FF shows no cursor if we stand on 0
         }
         def pill,
             # ensure the text of the item corresponds to the value of @item
@@ -712,6 +732,12 @@ def ttbox, jquery: ->
         r.setStart n, n.nodeValue.length
         r.setEnd n, n.nodeValue.length
         return r
+
+    setPlaceholder: (txt) ->
+        $el.find('.ttbox-placeholder').text txt
+
+    togglePlaceholder: (show) ->
+        $el.find('.ttbox-placeholder').toggle show and (!isIE or IEVer >= 11)
 
 # use jquery render default
 def ttbox, render: ttbox.jquery
