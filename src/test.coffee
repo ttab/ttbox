@@ -41,3 +41,5 @@ this.b = ttbox $('#myinput'), ttbox.trig(':', [
                 'pjn'
             ].filter (i) -> lc(i).indexOf(lc word) == 0
     )
+
+this.b.placeholder 'Testa : eller @'

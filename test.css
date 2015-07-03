@@ -16,6 +16,7 @@ body {
     width: 400px;
     margin-bottom: 50px;
     line-height: 30px;
+    border: 1px solid #888;
 }
 
 .ttbox-pill.persontrig {
