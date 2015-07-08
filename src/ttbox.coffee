@@ -169,6 +169,8 @@ ttbox = (el, trigs...) ->
         # get the current word
         r = wordRangeAtCursor(el)
         str = rangeStr(r)
+        # do nothing if current word already contains trigger symbol
+        return if str.indexOf(symbol) >= 0
         # insert space if we have content beforehand
         insert = if str == '' then symbol else " #{symbol}"
         cursor(el).insertNode doc.createTextNode insert
