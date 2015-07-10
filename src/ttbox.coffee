@@ -382,6 +382,28 @@ ttbox = (el, trigs...) ->
             # cancel previous update since we have a charcode
             update String.fromCharCode(e.which)
 
+        paste: (e) ->
+            # stop default paste action
+            e.preventDefault()
+
+            # grab the actual event (in case jQuery wrapped)
+            e = (e.originalEvent ? e)
+
+            if e?.clipboardData
+                # Standard style
+                txt = e.clipboardData.getData 'text/plain'
+                doc.execCommand 'insertText', false, txt
+            else if window.clipboardData
+                # IE style
+                txt = window.clipboardData.getData 'Text'
+                return unless r = cursor(el)
+                r.insertNode doc.createTextNode txt
+
+            update()
+
+            false
+
+
     # first drawing
     do draw = ->
         # draw and attach handlers
