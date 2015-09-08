@@ -94,6 +94,7 @@ Options:
 
 * `desc` description for this type. displayed in suggests.
 * `suggest` to do suggestions for input `function(word, callback, type)`
+* `limitOne` to limit number of pills of type to one (boolean).
 * `html` to take control of what html represents the type in suggest
   list. `function(word)` and return a string with the html.
 * `format` to get a chance to format (such as upper/lower-case) input
