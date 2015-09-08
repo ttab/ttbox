@@ -15,6 +15,7 @@ this.b = ttbox $('#myinput'), ttbox.trig(':', [
         format: (t) -> t.toUpperCase()
     ttbox.type 'pris',
         desc: 'ett pris'
+        limitOne: true
         suggest: (word, cb, type) -> cb [
             '500kr'
             '1000kr'

@@ -9,6 +9,7 @@ hold  = (ms, f) -> last = 0; tim = null; (as...) ->
     tim = setTimeout (->f as...), ms
 last  = (as) -> as?[as.length - 1]
 find  = (as, fn) -> return a for a in as when fn(a)
+arrayFilter = (as,fn) -> (a for a in as when fn(a))
 
 UA = glob?.navigator?.userAgent
 [isIE, IEVer] = /MSIE ([0-9]{1,}[.0-9]{0,})/.exec(UA) ? []
@@ -39,17 +40,24 @@ do ->
     css.innerHTML = styles
     doc.head.appendChild css
 
-class Type then constructor: (@name, opts) -> merge @, {format:I}, opts
-class Trigger then constructor: (@symbol, opts, types) ->
-    merge @, opts
-    @types = if Array.isArray types then types else [types]
-    # set back reference
-    t.trig = this for t in @types
-    if @prefix
-        throw new Error("Cant have multiple types with prefix trigger") if @types.length > 1
-        @re = RegExp "^()\\#{@symbol}(\\w*)$"
-    else
-        @re = RegExp "^(\\w*)\\#{@symbol}(\\w*)$"
+class Type
+    constructor: (@name, opts) ->
+        disabled =
+            setDisabled: (disabled)=> @disabled = !!disabled; @
+            isDisabled: => !!@disabled
+        merge @, {format:I}, opts, disabled
+
+class Trigger
+    constructor: (@symbol, opts, types) ->
+        merge @, opts
+        @types = if Array.isArray types then types else [types]
+        # set back reference
+        t.trig = this for t in @types
+        if @prefix
+            throw new Error("Cant have multiple types with prefix trigger") if @types.length > 1
+            @re = RegExp "^()\\#{@symbol}(\\w*)$"
+        else
+            @re = RegExp "^(\\w*)\\#{@symbol}(\\w*)$"
 
 # Skip zwnj chars when moving left/right
 skipZwnj = (pel, d, end) ->
@@ -240,7 +248,8 @@ ttbox = (el, trigs...) ->
         dispatch 'suggeststop'
 
     # close suggest when pills leave
-    el.addEventListener 'ttbox:pillremove', ->
+    el.addEventListener 'ttbox:pillremove', (ev)->
+        ev.pill?.type.setDisabled(false)
         stopsug()
         update() # trigger value-change
     # close suggest when pill lose focus
@@ -281,6 +290,8 @@ ttbox = (el, trigs...) ->
 
     # suggest for given types
     typesuggest = (range, tpos, trig, selectType, types) ->
+        # filter to only show types that are not disabled
+        ftypes = arrayFilter(types, (type)-> !type.isDisabled())
         # the current word
         word = rangeStr(range)
         # dont suggest for same word
@@ -294,16 +305,16 @@ ttbox = (el, trigs...) ->
             selectType item
             return true # indicate handled
         # function that suggest types
-        fntypes = (_, cb) -> cb types
+        fntypes = (_, cb) -> cb ftypes
         # if there is only one, set it as possible for return key
-        sugselect = sugselectfor types[0] if types.length == 1
+        sugselect = sugselectfor ftypes[0] if types.length == 1
         # render suggestions
         render.suggest fntypes, range, -1, setSugmover, (type, doset) ->
             sugselect = sugselectfor type
             sugselect() if doset
             dispatch 'suggesttype', {trig, type}
         # tell the world
-        dispatch 'suggesttypes', {trig, types}
+        dispatch 'suggesttypes', {trig, ftypes}
 
     handlepill = ->
         return unless r = entireTextAtCursor(el)
@@ -660,6 +671,14 @@ def ttbox, jquery: ->
 
     # insert a pill for type/item at given range
     pillify: (range, type, item, dispatch) ->
+
+        # if pill is restricted to single occurrences
+        if type.limitOne
+            # set type disabled and return if pill already in search
+            type.setDisabled(true)
+            tooMany = !!$('.ttbox-pill').filter( (i, pill) -> $(pill).data('type') == type.name).length
+            return false if tooMany
+
         # the trig is read from the type
         trig = type.trig
         # create pill html
@@ -675,6 +694,8 @@ def ttbox, jquery: ->
         $pill.addClass 'ttbox-pill-prefix' if type.trig.prefix
         $pill.addClass type.trig.className if type.trig.className
         $pill.addClass type.className if type.className
+        $pill.attr 'data-type', type.name
+
         # generate id to associate with mem structure
         id = "ttboxpill#{Date.now()}"
         $pill.attr 'id', id
