@@ -42,10 +42,7 @@ do ->
 
 class Type
     constructor: (@name, opts) ->
-        disabled =
-            setDisabled: (disabled)=> @disabled = !!disabled; @
-            isDisabled: => !!@disabled
-        merge @, {format:I}, opts, disabled
+        merge @, {format:I}, opts
 
 class Trigger
     constructor: (@symbol, opts, types) ->
@@ -238,7 +235,7 @@ ttbox = (el, trigs...) ->
         # find possible types
         types = trig.types.filter (t) -> trig.prefix or t.name?.indexOf(typename) == 0
         # hand off to deal with found input
-        handletypes r, trig, types, char
+        handletypes r, trig, types, char, values
 
     sugselect = sugmover = sugword = null
     setSugmover = (_sugmover) -> sugmover = _sugmover
@@ -249,13 +246,12 @@ ttbox = (el, trigs...) ->
 
     # close suggest when pills leave
     el.addEventListener 'ttbox:pillremove', (ev)->
-        ev.pill?.type.setDisabled(false)
         stopsug()
         update() # trigger value-change
     # close suggest when pill lose focus
     el.addEventListener 'ttbox:pillfocusout', stopsug
 
-    handletypes = (range, trig, types, char) ->
+    handletypes = (range, trig, types, char, values) ->
         # the trigger position in the word range
         tpos = findInRange range, trig.symbol
         # no tpos?!
@@ -285,13 +281,16 @@ ttbox = (el, trigs...) ->
                 # move the cursor to allow for suggest input
                 setCursorPos range, tpos
             # start a suggest for current possible types
-            typesuggest trange, tpos, trig, selectType, types
+            typesuggest trange, tpos, trig, selectType, types, values
 
 
     # suggest for given types
-    typesuggest = (range, tpos, trig, selectType, types) ->
-        # filter to only show types that are not disabled
-        ftypes = arrayFilter(types, (type)-> !type.isDisabled())
+    typesuggest = (range, tpos, trig, selectType, types, values) ->
+        # filter to only show types that are supposed to be there
+        # given limitOne:condition
+        ftypes = do ->
+            notInValues = (t) -> !(values?.filter (v) -> v?.type?.name == t.name)?.length
+            arrayFilter types, (type) -> !type.limitOne || notInValues(type)
         # the current word
         word = rangeStr(range)
         # dont suggest for same word
@@ -671,13 +670,6 @@ def ttbox, jquery: ->
 
     # insert a pill for type/item at given range
     pillify: (range, type, item, dispatch) ->
-
-        # if pill is restricted to single occurrences
-        if type.limitOne
-            # set type disabled and return if pill already in search
-            type.setDisabled(true)
-            tooMany = !!$('.ttbox-pill').filter( (i, pill) -> $(pill).data('type') == type.name).length
-            return false if tooMany
 
         # the trig is read from the type
         trig = type.trig
