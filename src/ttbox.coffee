@@ -552,7 +552,7 @@ def ttbox, jquery: ->
                 isText = (n) -> if n?.nodeType == 3 then n else null
                 i = r.startOffset
                 n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
-                setCursorEl n if n
+                setCursorEl n, -1 if n
             # firefox manages to focus anything but the only
             # contenteditable=true of the pill
             paren = r.startContainer.parentNode
