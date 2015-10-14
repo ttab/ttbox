@@ -355,8 +355,7 @@ ttbox = (el, trigs...) ->
 
     # the event handlers
     handlers =
-        keydown:  (e) ->
-
+        keydown: (e) ->
             # this does an important el.normalize() that ensures we have
             # contiguous text nodes, crucial for the range logic.
             render.tidy()
@@ -373,11 +372,9 @@ ttbox = (el, trigs...) ->
             if sugmover
                 if e.keyCode == 38      # up
                     e.preventDefault()  # no cursor move
-                    e.stopPropagation()
                     return sugmover(-1)
                 else if e.keyCode == 40 # down
                     e.preventDefault()  # no cursor move
-                    e.stopPropagation()
                     return sugmover(+1)
 
             if e.keyCode in [37, 8]
