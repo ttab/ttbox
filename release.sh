@@ -2,7 +2,7 @@
 
 npm run compile
 git add lib
-git ci -m 'compile new version'
+git commit -m 'compile new version'
 npm version patch
 # remove tag again since bower will set it.
 v=`grep version package.json | awk -F '\"' '{print $4}'`
