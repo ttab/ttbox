@@ -372,11 +372,9 @@ ttbox = (el, trigs...) ->
             if sugmover
                 if e.keyCode == 38      # up
                     e.preventDefault()  # no cursor move
-                    e.stopPropagation()
                     return sugmover(-1)
                 else if e.keyCode == 40 # down
                     e.preventDefault()  # no cursor move
-                    e.stopPropagation()
                     return sugmover(+1)
 
             if e.keyCode in [37, 8]
@@ -651,6 +649,7 @@ def ttbox, jquery: ->
                 $sug.find('.ttbox-selected').removeClass('ttbox-selected')
                 $sel = $sug.children('.ttbox-suggest-item').eq(idx)
                 $sel.addClass('ttbox-selected')
+                $sel[0]?.scrollIntoView()
                 selectcb nodivid[idx]
             # handle click on a suggest item, mousedown since click
             # will fight with focusout on the pill
@@ -708,7 +707,11 @@ def ttbox, jquery: ->
             pill.ensureItem()
             format() if pill.item?._text
             dispatch 'pillfocusout', {pill}
-
+        # helper function to scoll pill into view
+        scrollIn = ->
+            $pill.after $t = $('<span style="width:1px">')
+            $t[0].scrollIntoView()
+            $t.remove()
         # stop resize handles in IE
         if isIE
             $pill.on 'mousedown', (e) ->
@@ -722,9 +725,11 @@ def ttbox, jquery: ->
             setItem: (@item) -> $span.text toText @item
             # position in the pill value
             setCursorIn: ->
+                scrollIn()
                 setCursorEl $span[0]
             # position the cursor after the pill
             setCursorAfter: ->
+                scrollIn()
                 sib = $pill[0]?.nextSibling
                 setCursorEl sib if sib
                 skipZwnj $el[0], +1 # FF shows no cursor if we stand on 0
@@ -735,6 +740,7 @@ def ttbox, jquery: ->
                 stxt = $span.text().trim()
                 ptxt = toText pill?.item
                 pill.item = {value:stxt, _text:true} if stxt != ptxt
+        scrollIn()
         tidy()
         if item
             # set the value
