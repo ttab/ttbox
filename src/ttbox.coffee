@@ -355,8 +355,7 @@ ttbox = (el, trigs...) ->
 
     # the event handlers
     handlers =
-        keydown:  (e) ->
-
+        keydown: (e) ->
             # this does an important el.normalize() that ensures we have
             # contiguous text nodes, crucial for the range logic.
             render.tidy()
@@ -373,9 +372,11 @@ ttbox = (el, trigs...) ->
             if sugmover
                 if e.keyCode == 38      # up
                     e.preventDefault()  # no cursor move
+                    e.stopPropagation()
                     return sugmover(-1)
                 else if e.keyCode == 40 # down
                     e.preventDefault()  # no cursor move
+                    e.stopPropagation()
                     return sugmover(+1)
 
             if e.keyCode in [37, 8]
@@ -650,7 +651,9 @@ def ttbox, jquery: ->
                 $sug.find('.ttbox-selected').removeClass('ttbox-selected')
                 $sel = $sug.children('.ttbox-suggest-item').eq(idx)
                 $sel.addClass('ttbox-selected')
-                $sel[0]?.scrollIntoView()
+                sctop = $sel?.closest('.ttbox-sug-overflow').scrollTop()
+                pos = $sel?.position()
+                $sel?.closest('.ttbox-sug-overflow').scrollTop (pos.top + sctop)
                 selectcb nodivid[idx]
             # handle click on a suggest item, mousedown since click
             # will fight with focusout on the pill
@@ -672,7 +675,8 @@ def ttbox, jquery: ->
     pillify: (range, type, item, dispatch) ->
 
         # the trig is read from the type
-        trig = type.trig
+        return unless trig = type?.trig
+
         # create pill html
         dfn = if trig
             if trig.prefix then trig.symbol else type.name + trig.symbol
@@ -683,8 +687,8 @@ def ttbox, jquery: ->
         $pill.find('*').andSelf().prop 'contenteditable', 'false'
         ($span = $pill.find('span')).prop 'contenteditable', 'true'
         # if prefix style pill
-        $pill.addClass 'ttbox-pill-prefix' if type.trig.prefix
-        $pill.addClass type.trig.className if type.trig.className
+        $pill.addClass 'ttbox-pill-prefix' if trig.prefix
+        $pill.addClass trig.className if trig.className
         $pill.addClass type.className if type.className
         $pill.attr 'data-type', type.name
 
@@ -711,7 +715,9 @@ def ttbox, jquery: ->
         # helper function to scoll pill into view
         scrollIn = ->
             $pill.after $t = $('<span style="width:1px">')
-            $t[0].scrollIntoView()
+            scleft = $t.closest('.ttbox-overflow').scrollLeft()
+            pos = $t.position()
+            $t.closest('.ttbox-overflow').scrollLeft pos.left + scleft
             $t.remove()
         # stop resize handles in IE
         if isIE
