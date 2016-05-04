@@ -252,8 +252,17 @@ ttbox = (el, trigs...) ->
     el.addEventListener 'ttbox:pillfocusout', stopsug
 
     handletypes = (range, trig, types, char, values) ->
+        console.log 'in handleTypes'
+        console.log 'range: ',range
+        console.log 'char: ',char
+        console.log 'values: ',values
+        console.log 'types: ',types
+        console.log 'triggerSymbol: ',trig.symbol
+        # if trigger is 'default', the actual trigger is the entire search string
+        # in other cases the trigger is the trig.symbol
+        triggerSymbol = if trig.symbol is 'default' then values[0] else trig.symbol
         # the trigger position in the word range
-        tpos = findInRange range, trig.symbol
+        tpos = findInRange range, triggerSymbol
         # no tpos?!
         return if tpos < 0
         # range for type name (which may not be the entire name)
@@ -266,8 +275,12 @@ ttbox = (el, trigs...) ->
             render.pillify range, type, null, dispatch
             update()
             dispatch 'suggesttypeselect', {trig, type}
+
         if types.length == 0
             stopsug()
+        else if trig.symbol is 'default'
+            # Get suggestions for search string
+            typesuggest trange, tpos, trig, selectType, types, values
         else if types.length == 1 and not sugmover
             # one possible solution
             if wastrig
@@ -286,6 +299,11 @@ ttbox = (el, trigs...) ->
 
     # suggest for given types
     typesuggest = (range, tpos, trig, selectType, types, values) ->
+        console.log 'in typesuggest()'
+        console.log 'range: ',range
+        console.log 'tpos: ',tpos
+        console.log 'types: ',types
+        console.log 'values: ',values
         # filter to only show types that are supposed to be there
         # given limitOne:condition
         ftypes = do ->
@@ -307,6 +325,7 @@ ttbox = (el, trigs...) ->
         fntypes = (_, cb) -> cb ftypes
         # if there is only one, set it as possible for return key
         sugselect = sugselectfor ftypes[0] if types.length == 1
+        console.log 'sugselect: ',sugselect
         # render suggestions
         render.suggest fntypes, range, -1, setSugmover, (type, doset) ->
             sugselect = sugselectfor type
