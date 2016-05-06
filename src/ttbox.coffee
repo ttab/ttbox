@@ -226,16 +226,25 @@ ttbox = (el, trigs...) ->
         word = rangeStr(r)
         # a trigger in the word?
         trig = find trigs, (t) -> t.re.test word
-        # no trigger found in current word, abort
-        unless trig
-            stopsug?()
-            return
-        # exec trigger to get parts
-        [_, typename, value] = trig.re.exec word
-        # find possible types
-        types = trig.types.filter (t) -> trig.prefix or t.name?.indexOf(typename) == 0
-        # hand off to deal with found input
-        handletypes r, trig, types, char, values
+
+        if trig.symbol is 'default'
+            movecb = ()->
+                console.log 'in movecb'
+            selectcb = ()->
+                console.log 'in selectcb'
+
+            render.suggest trig.fn, r, -1, movecb, selectcb
+        else
+            # no trigger found in current word, abort
+            unless trig
+                stopsug?()
+                return
+            # exec trigger to get parts
+            [_, typename, value] = trig.re.exec word
+            # find possible types
+            types = trig.types.filter (t) -> trig.prefix or t.name?.indexOf(typename) == 0
+            # hand off to deal with found input
+            handletypes r, trig, types, char, values
 
     sugselect = sugmover = sugword = null
     setSugmover = (_sugmover) -> sugmover = _sugmover
@@ -252,15 +261,9 @@ ttbox = (el, trigs...) ->
     el.addEventListener 'ttbox:pillfocusout', stopsug
 
     handletypes = (range, trig, types, char, values) ->
-        console.log 'in handleTypes'
-        console.log 'range: ',range
-        console.log 'char: ',char
-        console.log 'values: ',values
-        console.log 'types: ',types
-        console.log 'triggerSymbol: ',trig.symbol
         # if trigger is 'default', the actual trigger is the entire search string
         # in other cases the trigger is the trig.symbol
-        triggerSymbol = if trig.symbol is 'default' then values[0] else trig.symbol
+        triggerSymbol = trig.symbol
         # the trigger position in the word range
         tpos = findInRange range, triggerSymbol
         # no tpos?!
@@ -278,9 +281,6 @@ ttbox = (el, trigs...) ->
 
         if types.length == 0
             stopsug()
-        else if trig.symbol is 'default'
-            # Get suggestions for search string
-            typesuggest trange, tpos, trig, selectType, types, values
         else if types.length == 1 and not sugmover
             # one possible solution
             if wastrig
@@ -299,11 +299,6 @@ ttbox = (el, trigs...) ->
 
     # suggest for given types
     typesuggest = (range, tpos, trig, selectType, types, values) ->
-        console.log 'in typesuggest()'
-        console.log 'range: ',range
-        console.log 'tpos: ',tpos
-        console.log 'types: ',types
-        console.log 'values: ',values
         # filter to only show types that are supposed to be there
         # given limitOne:condition
         ftypes = do ->
@@ -325,7 +320,6 @@ ttbox = (el, trigs...) ->
         fntypes = (_, cb) -> cb ftypes
         # if there is only one, set it as possible for return key
         sugselect = sugselectfor ftypes[0] if types.length == 1
-        console.log 'sugselect: ',sugselect
         # render suggestions
         render.suggest fntypes, range, -1, setSugmover, (type, doset) ->
             sugselect = sugselectfor type
