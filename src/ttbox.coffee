@@ -226,19 +226,14 @@ ttbox = (el, trigs...) ->
         word = rangeStr(r)
         # a trigger in the word?
         trig = find trigs, (t) -> t.re.test word
+        # no trigger found in current word, abort
+        unless trig
+            stopsug?()
+            return
 
         if trig.symbol is 'default'
-            movecb = ()->
-                console.log 'in movecb'
-            selectcb = ()->
-                console.log 'in selectcb'
-
-            render.suggest trig.fn, r, -1, movecb, selectcb
+            defaultSuggest trig.fn, r, -1
         else
-            # no trigger found in current word, abort
-            unless trig
-                stopsug?()
-                return
             # exec trigger to get parts
             [_, typename, value] = trig.re.exec word
             # find possible types
@@ -327,6 +322,29 @@ ttbox = (el, trigs...) ->
             dispatch 'suggesttype', {trig, type}
         # tell the world
         dispatch 'suggesttypes', {trig, ftypes}
+
+    defaultSuggest = (triggerFn, range, sugStartIndex)->
+
+        selectItem = (item) ->
+            # Set selected item in search box and trigger search
+            for input in $('.ttbox-input')
+                input.childNodes[0].nodeValue = item.value
+            dispatch 'suggestitemselect', item
+
+        sugSelectFn = (item, doset) ->
+            sugselect = ->
+                # stop suggesting
+                stopsug()
+                # select the item
+                selectItem item
+                return true # indicate handled
+            sugselect() if doset
+            dispatch 'suggestitem', item
+
+        # When performing default suggestions we want to match on all
+        # search terms
+        range.setStart range.startContainer, 0
+        render.suggest triggerFn, range, sugStartIndex, setSugmover, sugSelectFn
 
     handlepill = ->
         return unless r = entireTextAtCursor(el)
