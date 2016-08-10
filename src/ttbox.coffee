@@ -387,10 +387,14 @@ ttbox = (el, trigs...) ->
     # the event handlers
     handlers =
         keydown: (e) ->
+            # fix Firefox highligh bug causing highlighted words not to be removed on new input
+            ttboxContent = render.values()[0]
+            highlightedText = window.getSelection().toString()
+            render.clear() if highlightedText.indexOf(ttboxContent)>-1
+
             # this does an important el.normalize() that ensures we have
             # contiguous text nodes, crucial for the range logic.
             render.tidy()
-
             if e.keyCode == 13
                 e.preventDefault() # dont want DOM change
                 if sugselect?()
