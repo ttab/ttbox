@@ -1,6 +1,6 @@
 {
   "name": "ttbox",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "modern search box with pills for restrictions",
   "main": "index.js",
   "scripts": {
