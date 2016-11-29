@@ -230,16 +230,12 @@ ttbox = (el, trigs...) ->
         unless trig
             stopsug?()
             return
-
-        if trig.symbol is 'default'
-            defaultSuggest trig.fn, r, -1
-        else
-            # exec trigger to get parts
-            [_, typename, value] = trig.re.exec word
-            # find possible types
-            types = trig.types.filter (t) -> trig.prefix or t.name?.indexOf(typename) == 0
-            # hand off to deal with found input
-            handletypes r, trig, types, char, values
+        # exec trigger to get parts
+        [_, typename, value] = trig.re.exec word
+        # find possible types
+        types = trig.types.filter (t) -> trig.prefix or t.name?.indexOf(typename) == 0
+        # hand off to deal with found input
+        handletypes r, trig, types, char, values
 
     sugselect = sugmover = sugword = null
     setSugmover = (_sugmover) -> sugmover = _sugmover
@@ -256,11 +252,8 @@ ttbox = (el, trigs...) ->
     el.addEventListener 'ttbox:pillfocusout', stopsug
 
     handletypes = (range, trig, types, char, values) ->
-        # if trigger is 'default', the actual trigger is the entire search string
-        # in other cases the trigger is the trig.symbol
-        triggerSymbol = trig.symbol
         # the trigger position in the word range
-        tpos = findInRange range, triggerSymbol
+        tpos = findInRange range, trig.symbol
         # no tpos?!
         return if tpos < 0
         # range for type name (which may not be the entire name)
@@ -273,7 +266,6 @@ ttbox = (el, trigs...) ->
             render.pillify range, type, null, dispatch
             update()
             dispatch 'suggesttypeselect', {trig, type}
-
         if types.length == 0
             stopsug()
         else if types.length == 1 and not sugmover
@@ -322,29 +314,6 @@ ttbox = (el, trigs...) ->
             dispatch 'suggesttype', {trig, type}
         # tell the world
         dispatch 'suggesttypes', {trig, ftypes}
-
-    defaultSuggest = (triggerFn, range, sugStartIndex)->
-
-        selectItem = (item) ->
-            # Set selected item in search box and trigger search
-            for input in $('.ttbox-input')
-                input.childNodes[0].nodeValue = item.value
-            dispatch 'suggestitemselect', item
-
-        sugSelectFn = (item, doset) ->
-            sugselect = ->
-                # stop suggesting
-                stopsug()
-                # select the item
-                selectItem item
-                return true # indicate handled
-            sugselect() if doset
-            dispatch 'suggestitem', item
-
-        # When performing default suggestions we want to match on all
-        # search terms
-        range.setStart range.startContainer, 0
-        render.suggest triggerFn, range, sugStartIndex, setSugmover, sugSelectFn
 
     handlepill = ->
         return unless r = entireTextAtCursor(el)
