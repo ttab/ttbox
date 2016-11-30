@@ -142,6 +142,10 @@ ttbox = (el, trigs...) ->
     # and check we got a good thing back
     throw new Error('Need a DIV') unless el.tagName == 'DIV'
 
+    # some declarations
+    sugselect = sugmover = sugword = null
+    setSugmover = (_sugmover) -> sugmover = _sugmover
+
     # dispatch events on incoming div
     dispatch = (name, opts) ->
         e = doc.createEvent 'Event'
@@ -174,17 +178,19 @@ ttbox = (el, trigs...) ->
         # get the current word
         r = wordRangeAtCursor(el)
         str = rangeStr(r)
-        # do nothing if current word already contains trigger symbol
-        return if str.indexOf(symbol) >= 0
-        # insert space if we have content beforehand
-        insert = if str == '' then symbol else " #{symbol}"
-        cursor(el).insertNode doc.createTextNode insert
+        # if word already contains the trigger symbol, remove it
+        if str.indexOf(symbol) >= 0
+            r.deleteContents()
+        else
+            # insert space if we have content beforehand
+            insert = if str == '' then symbol else " #{symbol}"
+            cursor(el).insertNode doc.createTextNode insert
         # make contiguous text nodes
         render.tidy()
         # position at the very end of this
         r = entireTextAtCursor(el)
         setCursorPos r, r.endOffset - symbol.length
-        # trigger suggest
+        # trigger suggest (or remove)
         update()
 
     # exposed operations
@@ -237,8 +243,6 @@ ttbox = (el, trigs...) ->
         # hand off to deal with found input
         handletypes r, trig, types, char, values
 
-    sugselect = sugmover = sugword = null
-    setSugmover = (_sugmover) -> sugmover = _sugmover
     stopsug = ->
         sugselect = sugmover = sugword = null
         render.unsuggest()
