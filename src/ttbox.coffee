@@ -636,10 +636,14 @@ def ttbox, jquery: ->
         $sug.html(''); $sug.off()
         # class to hook styling when suggesting
         $box().addClass('ttbox-suggest-request')
+        $box().removeClass('ttbox-suggest-no-items')
         # request to get suggest elements
         fn word, (list) ->
             # not requesting anymore
             $box().removeClass 'ttbox-suggest-request'
+            # maybe no hits?
+            unless list.length
+                $box().addClass('ttbox-suggest-no-items')
             # local toHtml with word
             locToHtml = toHtml(word)
             # turn list into html
