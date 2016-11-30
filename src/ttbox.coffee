@@ -246,7 +246,9 @@ ttbox = (el, trigs...) ->
         # no trigger found in current word, abort
         unless trig
             stopsug?()
+            dispatch 'unhandled', {range:r, word}
             return
+        dispatch 'handled', {range:r, word}
         # exec trigger to get parts
         [_, typename, value] = trig.re.exec word
         # find possible types
