@@ -564,18 +564,13 @@ def ttbox, jquery: ->
         inp.normalize()
         # move cursor to not be on bad element positions
         if r = cursor($el[0])
-            if (r.startContainer == inp or r.endContainer == inp)
+            if r.startContainer == inp or r.endContainer == inp
                 cs = Array::slice.call childs
                 # current text node, then right, the left.
                 isText = (n) -> if n?.nodeType == 3 then n else null
                 i = r.startOffset
                 n = isText(cs[i]) ? isText(cs[i + 1]) ? isText(cs[i - 1])
                 setCursorEl n, -1 if n
-            # firefox manages to focus anything but the only
-            # contenteditable=true of the pill
-            paren = r.startContainer.parentNode
-            if paren?.nodeName != 'SPAN' and pill = pillfor paren
-                pill.setCursorIn()
         # keep cache clean
         tidypills()
         null
