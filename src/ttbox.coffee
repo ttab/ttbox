@@ -193,9 +193,20 @@ ttbox = (el, trigs...) ->
         # trigger suggest (or remove)
         update()
 
+    # fn is (word, cb)
+    # cb should provide a list of suggested one of
+    #   - {html:(word)->}
+    #   - {value:'str', desc:'str'}
+    #   - string
+    # selectfn is (item) where item is the item provided in cb
+    showsuggest = (fn, range, selectfn) ->
+        render.suggest fn, range, -1, setSugmover, (item, doset) ->
+            sugselect = -> selectfn(item)
+    hidesuggest = -> render.unsuggest()
+
     # exposed operations
     façade = {
-        addpill, addtext, render, clear, trigger
+        addpill, addtext, render, clear, trigger, showsuggest, hidesuggest
         values: -> render.values()
         setvalues: (values) ->
             clear()
